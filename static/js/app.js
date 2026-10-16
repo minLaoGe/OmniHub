@@ -149,9 +149,19 @@ const app = createApp({
         const res = await fetch(`/api/services/${id}/start`, { method: 'POST' });
         const data = await res.json();
         await fetchServices();
+
+        // 延迟 1.5 秒二次确认是否成功运行，如果异常退出则自动弹出错误日志
+        setTimeout(async () => {
+          await fetchServices();
+          const updated = services.value.find(item => item.id === id);
+          if (updated && updated.status === 'ERROR') {
+            openLogs(updated);
+          }
+        }, 1500);
+
         return data;
       } catch (e) {
-        alert("启动服务失败: " + e);
+        alert("启动服务请求失败: " + e);
       }
     };
 

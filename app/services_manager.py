@@ -141,10 +141,13 @@ class ServicesManager:
             cpu_percent, memory_mb = self.get_process_tree_metrics(real_pid)
             if memory_mb > 0 or port_open:
                 sp.status = "RUNNING"
-            else:
+            elif sp.status != "ERROR":
                 sp.status = "STOPPED"
         else:
-            sp.status = "RUNNING" if port_open else "STOPPED"
+            if port_open:
+                sp.status = "RUNNING"
+            elif sp.status != "ERROR":
+                sp.status = "STOPPED"
 
         max_mem = sp.config.get("max_memory_mb", 0)
         is_exceeded = (max_mem > 0) and (memory_mb > max_mem)
@@ -159,6 +162,7 @@ class ServicesManager:
             "url": sp.config.get("url"),
             "status": sp.status,
             "pid": real_pid,
+            "last_error": getattr(sp, "last_error", None),
             "cpu_percent": cpu_percent,
             "memory_mb": memory_mb,
             "max_memory_mb": max_mem,
@@ -315,6 +319,7 @@ class ServicesManager:
             return {"success": False, "message": f"启动失败: {str(e)}"}
 
     async def _stream_process_logs(self, sp: ServiceProcess):
+        return_code = 0
         try:
             while sp.process and sp.process.returncode is None:
                 line = await sp.process.stdout.readline()
@@ -328,8 +333,16 @@ class ServicesManager:
             if sp.process:
                 return_code = await sp.process.wait()
                 sp.log(f"--- [OmniHub] 服务已退出，退出码: {return_code} ---")
-            sp.status = "STOPPED"
             sp.pid = None
+            if return_code != 0:
+                sp.status = "ERROR"
+                # Extract last error lines for quick feedback
+                last_logs = [l for l in list(sp.logs)[-8:] if l and not l.startswith("---")]
+                sp.last_error = "\n".join(last_logs) if last_logs else f"进程退出，退出码: {return_code}"
+            else:
+                sp.status = "STOPPED"
+                sp.last_error = None
+
             if sp._guard_task and not sp._guard_task.done():
                 sp._guard_task.cancel()
 

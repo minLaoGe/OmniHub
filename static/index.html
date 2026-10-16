@@ -263,12 +263,22 @@
                   </div>
                   <div class="flex items-center gap-1.5">
                     <span class="px-2 py-0.5 rounded text-xs font-mono"
-                      :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-800 text-gray-400'">
-                      {{ service.status }}
+                      :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (service.status === 'ERROR' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-gray-800 text-gray-400')">
+                      {{ service.status === 'ERROR' ? 'FAILED' : service.status }}
                     </span>
                   </div>
                 </div>
                 <p class="text-xs text-gray-400 leading-relaxed mb-4">{{ service.description }}</p>
+
+                <!-- 启动失败提示条 -->
+                <div v-if="service.status === 'ERROR'" @click="openLogs(service)"
+                  class="bg-rose-950/40 border border-rose-800/60 p-2.5 rounded-xl text-xs text-rose-300 flex items-center justify-between cursor-pointer hover:bg-rose-900/40 transition-all mb-3">
+                  <span class="truncate flex items-center gap-1.5">
+                    <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    启动异常，点击查看原因
+                  </span>
+                  <span class="underline shrink-0 text-[11px]">查看日志</span>
+                </div>
 
                 <!-- 资源与端口详情 -->
                 <div class="space-y-2 text-xs text-gray-400 bg-gray-900/60 p-3 rounded-xl border border-gray-800 font-mono">
@@ -398,8 +408,8 @@
                 <div class="flex items-center gap-3">
                   <h4 class="font-semibold text-white text-base">{{ service.name }}</h4>
                   <span class="px-2 py-0.5 rounded text-xs font-mono"
-                    :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-800 text-gray-400'">
-                    {{ service.status }}
+                    :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (service.status === 'ERROR' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-gray-800 text-gray-400')">
+                    {{ service.status === 'ERROR' ? 'FAILED / 启动失败' : service.status }}
                   </span>
                   <!-- 端口标签 -->
                   <span class="text-xs font-mono text-blue-300 bg-blue-900/30 px-2.5 py-0.5 rounded border border-blue-800/40">
@@ -412,6 +422,17 @@
                   </span>
                 </div>
                 <p class="text-xs text-gray-400 max-w-2xl">{{ service.description }}</p>
+
+                <!-- 启动失败提示条 -->
+                <div v-if="service.status === 'ERROR'" @click="openLogs(service)"
+                  class="bg-rose-950/40 border border-rose-800/60 p-2.5 rounded-xl text-xs text-rose-300 flex items-center justify-between cursor-pointer hover:bg-rose-900/40 transition-all">
+                  <span class="truncate flex items-center gap-1.5">
+                    <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    启动异常退出，点击查看原因: 未检测到模型权重文件 (.gguf)
+                  </span>
+                  <span class="underline shrink-0 text-[11px]">查看日志</span>
+                </div>
+
                 <div class="text-[11px] font-mono text-gray-500 truncate max-w-xl">
                   命令: {{ service.command }} {{ (service.args || []).join(' ') }}
                 </div>
