@@ -193,3 +193,16 @@ async def update_system_settings(settings: dict = Body(...)):
 @app.api_route("/proxy/{service_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
 async def proxy_endpoint(service_id: str, path: str, request: Request):
     return await proxy_service_request(service_id, path, request)
+
+# ----------------- OpenAI 兼容中继网关 (专为 Trae、Cursor、Cline 等 IDE 客户端打造) -----------------
+@app.api_route("/v1/chat/completions", methods=["POST", "OPTIONS"])
+@app.api_route("/chat/completions", methods=["POST", "OPTIONS"])
+@app.api_route("/v1/v1/chat/completions", methods=["POST", "OPTIONS"])
+async def openai_chat_proxy(request: Request):
+    return await proxy_service_request("qwen27b", "v1/chat/completions", request)
+
+@app.api_route("/v1/models", methods=["GET", "OPTIONS"])
+@app.api_route("/models", methods=["GET", "OPTIONS"])
+@app.api_route("/v1/v1/models", methods=["GET", "OPTIONS"])
+async def openai_models_proxy(request: Request):
+    return await proxy_service_request("qwen27b", "v1/models", request)

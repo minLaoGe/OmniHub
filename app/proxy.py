@@ -11,10 +11,10 @@ HOP_BY_HOP = {
 
 async def proxy_service_request(service_id: str, path: str, request: Request) -> Response:
     status_info = await services_manager.get_service_status(service_id)
-    if not status_info or status_info.get("status") != "RUNNING":
-        return Response(content=f"Service '{service_id}' is not running.", status_code=503)
+    port = status_info.get("port") if status_info else None
+    if not status_info or (status_info.get("status") != "RUNNING" and not status_info.get("port_open")):
+        return Response(content=f"Service '{service_id}' is not running (Port {port} is closed).", status_code=503)
 
-    port = status_info.get("port")
     if not port:
         return Response(content=f"Service '{service_id}' has no defined port.", status_code=400)
 
