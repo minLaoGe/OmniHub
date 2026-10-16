@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>REA 逆向工程工作台 · OmniHub 集成</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { background-color: #0b0f19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glass-card { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+        <i data-lucide="shield-alert" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="font-bold text-lg text-white tracking-wide">REA Reverse Engineering Hub</h1>
+          <span class="px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">v6.4.0</span>
+          <span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            MCP 就绪
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">跨二进制、APK、macOS Mach-O、Electron 与运行时行为的一站式逆向工程分析控制台</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <a href="http://127.0.0.1:9527" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 flex items-center gap-1.5 transition">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        返回 OmniHub
+      </a>
+      <button onclick="refreshAll()" class="px-3 py-1.5 rounded-lg text-xs font-medium text-purple-300 hover:text-white bg-purple-950/40 hover:bg-purple-900/50 border border-purple-700/40 flex items-center gap-1.5 transition">
+        <i data-lucide="refresh-cw" id="refresh-icon" class="w-3.5 h-3.5"></i>
+        刷新状态
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+    <!-- KPI Metric Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="glass-card rounded-xl p-4 flex items-center space-x-4">
+        <div class="p-3 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <i data-lucide="cpu" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">已注册 MCP 工具</div>
+          <div class="text-2xl font-bold text-white" id="stat-tools">170</div>
+          <div class="text-[11px] text-slate-500">覆盖全平台二进制分析</div>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 flex items-center space-x-4">
+        <div class="p-3 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          <i data-lucide="layers" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">底层 Node 运行时</div>
+          <div class="text-2xl font-bold text-white">v22.20.0</div>
+          <div class="text-[11px] text-slate-500">原生 ES 模块驱动引擎</div>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 flex items-center space-x-4">
+        <div class="p-3 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">MCP Doctor 诊断</div>
+          <div class="text-2xl font-bold text-emerald-400" id="stat-doctor">通过</div>
+          <div class="text-[11px] text-slate-500">协议版本 2025-11-25</div>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 flex items-center space-x-4">
+        <div class="p-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          <i data-lucide="bot" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">AI 调度集成</div>
+          <div class="text-2xl font-bold text-purple-300">OmniHub</div>
+          <div class="text-[11px] text-slate-500">Qwen3.8-27B 智能调度就绪</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-slate-800 space-x-2">
+      <button onclick="switchTab('analyze')" id="tab-btn-analyze" class="px-4 py-2 text-sm font-medium border-b-2 border-purple-500 text-purple-400 flex items-center gap-2">
+        <i data-lucide="crosshair" class="w-4 h-4"></i>
+        目标文件快速逆向分析
+      </button>
+      <button onclick="switchTab('tools')" id="tab-btn-tools" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <i data-lucide="wrench" class="w-4 h-4"></i>
+        170+ MCP 工具目录库
+      </button>
+      <button onclick="switchTab('doctor')" id="tab-btn-doctor" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <i data-lucide="activity" class="w-4 h-4"></i>
+        引擎健康与 Provider 状态
+      </button>
+    </div>
+
+    <!-- Tab 1: Analyze -->
+    <div id="tab-analyze" class="space-y-4">
+      <div class="glass rounded-xl p-6">
+        <h2 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
+          <i data-lucide="file-search" class="w-5 h-5 text-indigo-400"></i>
+          输入目标文件路径进行逆向解构
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">
+          支持 Android APK 包、iOS/macOS Mach-O 二进制、Windows PE 执行体、Electron ASAR、或者解压出来的应用目录。
+        </p>
+
+        <div class="flex gap-3 mb-4">
+          <input type="text" id="target-input" placeholder="输入绝对路径，如: /Users/minfengyu/Downloads/sample.apk 或 /Applications/App.app" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+          <button onclick="runAnalysis()" id="analyze-btn" class="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-sm flex items-center gap-2 shadow-lg shadow-purple-600/30 transition">
+            <i data-lucide="play" class="w-4 h-4"></i>
+            开始深度分析
+          </button>
+        </div>
+
+        <!-- Analysis Results Output -->
+        <div id="analyze-loading" class="hidden py-8 text-center text-slate-400 space-y-2">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+          <div class="text-sm">REA 正在深入解构目标二进制结构，提取 Evidence 与元数据，请稍候...</div>
+        </div>
+
+        <div id="analyze-result-container" class="hidden space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300">分析输出结果 (Evidence & Manifest)</span>
+            <button onclick="copyOutput()" class="text-xs text-purple-400 hover:underline">复制内容</button>
+          </div>
+          <pre id="analyze-output" class="bg-black/60 border border-slate-800 rounded-lg p-4 font-mono text-xs text-emerald-400 max-h-96 overflow-y-auto whitespace-pre-wrap"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: MCP Tools Library -->
+    <div id="tab-tools" class="hidden space-y-4">
+      <div class="glass rounded-xl p-6">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+              <i data-lucide="database" class="w-5 h-5 text-cyan-400"></i>
+              REA 原生 MCP 工具库大全
+            </h2>
+            <p class="text-xs text-slate-400">所有工具均已注册至 OmniHub MCP 网关，AI 调度中心和本地 Agent 均可自主无缝调用</p>
+          </div>
+          <div class="flex items-center gap-3 w-full md:w-auto">
+            <input type="text" id="tool-search" oninput="filterTools()" placeholder="搜索工具名称或描述..." class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 w-full md:w-64">
+            <select id="tool-category" onchange="filterTools()" class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+              <option value="ALL">全部类别</option>
+              <option value="Android / APK">Android / APK</option>
+              <option value="Apple / Mach-O">Apple / Mach-O</option>
+              <option value="Windows / PE / .NET">Windows / PE / .NET</option>
+              <option value="Web / JavaScript / Electron">Web / JavaScript / Electron</option>
+              <option value="Decompilation & Disassembly">反编译与反汇编</option>
+              <option value="Dynamic Analysis & Inspection">动态分析与状态检查</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="tools-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-2">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Providers & Doctor -->
+    <div id="tab-doctor" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="glass rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-sm text-white flex items-center gap-2">
+              <i data-lucide="stethoscope" class="w-4 h-4 text-emerald-400"></i>
+              REA MCP Doctor 诊断详情
+            </h3>
+            <button onclick="loadStatus()" class="text-xs text-purple-400 hover:underline">重新诊断</button>
+          </div>
+          <pre id="doctor-output" class="bg-black/60 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 max-h-80 overflow-y-auto whitespace-pre-wrap">加载中...</pre>
+        </div>
+
+        <div class="glass rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-sm text-white flex items-center gap-2">
+              <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i>
+              支持的分析引擎 Providers 状态
+            </h3>
+            <button onclick="loadProviders()" class="text-xs text-cyan-400 hover:underline">刷新 Provider</button>
+          </div>
+          <pre id="providers-output" class="bg-black/60 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 max-h-80 overflow-y-auto whitespace-pre-wrap">加载中...</pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-slate-800/60 py-4 px-6 text-center text-xs text-slate-500">
+    OmniHub · REA (Reverse Engineer Anything) v6.4.0 Engine Integration · Powered by AI Agent & MCP
+  </footer>
+
+  <script>
+    lucide.createIcons();
+    let allTools = [];
+
+    function switchTab(tab) {
+      ['analyze', 'tools', 'doctor'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`tab-btn-${t}`).classList.remove('border-purple-500', 'text-purple-400');
+        document.getElementById(`tab-btn-${t}`).classList.add('border-transparent', 'text-slate-400');
+      });
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-btn-${tab}`).classList.add('border-purple-500', 'text-purple-400');
+      document.getElementById(`tab-btn-${tab}`).classList.remove('border-transparent', 'text-slate-400');
+
+      if (tab === 'tools' && allTools.length === 0) {
+        loadTools();
+      } else if (tab === 'doctor') {
+        loadStatus();
+        loadProviders();
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        document.getElementById('doctor-output').textContent = data.doctor_raw || '正常';
+        document.getElementById('stat-doctor').textContent = data.healthy ? '通过' : '异常';
+      } catch (e) {
+        document.getElementById('doctor-output').textContent = '诊断请求失败: ' + e;
+      }
+    }
+
+    async function loadProviders() {
+      try {
+        const res = await fetch('/api/providers');
+        const data = await res.json();
+        document.getElementById('providers-output').textContent = data.output || '暂无数据';
+      } catch (e) {
+        document.getElementById('providers-output').textContent = '获取 Providers 失败: ' + e;
+      }
+    }
+
+    async function loadTools() {
+      const grid = document.getElementById('tools-grid');
+      grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400">正在从 REA MCP 加载 170 个逆向工具元数据...</div>';
+      try {
+        const res = await fetch('/api/tools');
+        const data = await res.json();
+        allTools = data.tools || [];
+        document.getElementById('stat-tools').textContent = allTools.length;
+        renderTools(allTools);
+      } catch (e) {
+        grid.innerHTML = '<div class="col-span-full py-8 text-center text-rose-400">加载工具失败: ' + e + '</div>';
+      }
+    }
+
+    function renderTools(tools) {
+      const grid = document.getElementById('tools-grid');
+      if (tools.length === 0) {
+        grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-500">没有匹配的工具</div>';
+        return;
+      }
+      grid.innerHTML = tools.map(t => `
+        <div class="glass-card rounded-lg p-3 hover:border-slate-600 transition flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-mono text-xs font-semibold text-purple-300 break-all">${t.name}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50">${t.category}</span>
+            </div>
+            <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed">${t.description || '无详细描述'}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterTools() {
+      const q = document.getElementById('tool-search').value.toLowerCase();
+      const cat = document.getElementById('tool-category').value;
+      const filtered = allTools.filter(t => {
+        const matchQ = t.name.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q));
+        const matchCat = (cat === 'ALL' || t.category === cat);
+        return matchQ && matchCat;
+      });
+      renderTools(filtered);
+    }
+
+    async function runAnalysis() {
+      const target = document.getElementById('target-input').value.trim();
+      if (!target) {
+        alert('请输入目标文件或应用路径');
+        return;
+      }
+      const btn = document.getElementById('analyze-btn');
+      const loading = document.getElementById('analyze-loading');
+      const container = document.getElementById('analyze-result-container');
+      const out = document.getElementById('analyze-output');
+
+      btn.disabled = true;
+      loading.classList.remove('hidden');
+      container.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_path: target, format: 'json' })
+        });
+        const data = await res.json();
+        out.textContent = data.stdout || data.stderr || JSON.stringify(data, null, 2);
+        container.classList.remove('hidden');
+      } catch (e) {
+        out.textContent = '分析请求出错: ' + e;
+        container.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+      }
+    }
+
+    function copyOutput() {
+      const text = document.getElementById('analyze-output').textContent;
+      navigator.clipboard.writeText(text);
+      alert('已复制到剪贴板');
+    }
+
+    function refreshAll() {
+      loadStatus();
+      if (allTools.length > 0) loadTools();
+    }
+
+    // Init
+    loadStatus();
+  </script>
+</body>
+</html>

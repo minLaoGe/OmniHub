@@ -80,7 +80,12 @@
      - `get_service_logs(service_id, limit)`: 调取最近日志供 Agent 排查
      - `get_system_health_metrics()`: 获取系统 CPU/内存/磁盘健康指标
 
-6. **全平台无缝兼容 (Windows, macOS, Linux)**
+6. **REA (Reverse Engineer Anything) 深度逆向工程控制台 & 170+ MCP 工具**
+   - 原生集成 REA v6.4.0 逆向分析引擎，提供专属 Web 控制台 (`http://127.0.0.1:8877`) 与一键分析面板。
+   - 包含 170+ MCP 原生逆向工具：覆盖 Android APK、iOS/macOS Mach-O、Windows PE/.NET、Electron/JavaScript、函数伪代码反编译与动态调用追踪。
+   - 内置智能上下文工具路由（Smart Tool Routing），在本地大模型（如 Qwen3.8-27B 8K 上下文）中根据用户意图毫秒级语义检索匹配工具，兼顾超大工具库与超快推理响应。
+
+7. **全平台无缝兼容 (Windows, macOS, Linux)**
    - 跨平台进程树管理机制，完全抹平系统底层进程信号与控制台差异。
    - 提供 `start.sh` (Mac/Linux)、`start.bat` (Windows) 及通用的 `python start.py`。
 
@@ -191,7 +196,12 @@ When running multiple AI services locally, developers often face fragmented expe
      - `get_service_logs`: Fetch console outputs for agent-driven debugging.
      - `get_system_health_metrics`: Query CPU, memory, and disk health metrics.
 
-6. **Cross-Platform Compatibility (Windows, macOS, Linux)**
+6. **REA (Reverse Engineer Anything) Suite & 170+ MCP Tools**
+   - Integrated REA v6.4.0 reverse-engineering engine with dedicated Web Workbench (`http://127.0.0.1:8877`).
+   - Supports Android APKs, Apple Mach-O binaries, Windows PE/.NET, Electron/JavaScript applications, and pseudo-code decompilation.
+   - Intelligent tool semantic routing keeps context sizes compact (~2k tokens) to fit safely within local LLM 8K context windows.
+
+7. **Cross-Platform Compatibility (Windows, macOS, Linux)**
    - Gracefully manages process trees across Win32 and POSIX environments.
    - Launchers provided: `start.sh`, `start.bat`, and `python start.py`.
 

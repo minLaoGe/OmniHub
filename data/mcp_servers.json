@@ -21,5 +21,19 @@
       "/Users/minfengyu/files/Antigravty/omnihub_mcp_server.py"
     ],
     "enabled": true
+  },
+  {
+    "id": "rea-reverse-engineering",
+    "name": "REA 逆向工程分析智能助手 (MCP)",
+    "description": "提供 170+ 逆向分析工具，支持 APK/Android、iOS/Mach-O、PE/Windows、Web/JavaScript、反编译与二进制分析",
+    "type": "stdio",
+    "command": "/bin/bash",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/rea_mcp.sh"
+    ],
+    "env": {
+      "PATH": "/Users/minfengyu/.nvm/versions/node/v22.20.0/bin:/usr/local/bin:/usr/bin:/bin"
+    },
+    "enabled": true
   }
 ]

@@ -111,20 +111,28 @@ class MCPManager:
         # Connect and query
         command = server_cfg.get("command")
         args = server_cfg.get("args", [])
-        env = server_cfg.get("env") or None
+        env_vars = os.environ.copy()
+        if server_cfg.get("env"):
+            env_vars.update(server_cfg.get("env"))
 
         try:
-            params = StdioServerParameters(command=command, args=args, env=env)
+            params = StdioServerParameters(command=command, args=args, env=env_vars)
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     tools_result = await session.list_tools()
                     tool_list = []
                     for t in tools_result.tools:
+                        schema = getattr(t, "inputSchema", None) or getattr(t, "input_schema", {})
+                        if hasattr(schema, "model_dump"):
+                            schema = schema.model_dump()
+                        elif hasattr(schema, "dict"):
+                            schema = schema.dict()
+
                         tool_list.append({
                             "name": t.name,
                             "description": t.description or "",
-                            "inputSchema": t.inputSchema if hasattr(t, "inputSchema") else {}
+                            "inputSchema": schema if isinstance(schema, dict) else {}
                         })
                     self.cached_tools[server_id] = tool_list
                     return tool_list
@@ -158,10 +166,12 @@ class MCPManager:
         server_cfg = self.servers[server_id]
         command = server_cfg.get("command")
         args = server_cfg.get("args", [])
-        env = server_cfg.get("env") or None
+        env_vars = os.environ.copy()
+        if server_cfg.get("env"):
+            env_vars.update(server_cfg.get("env"))
 
         try:
-            params = StdioServerParameters(command=command, args=args, env=env)
+            params = StdioServerParameters(command=command, args=args, env=env_vars)
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()

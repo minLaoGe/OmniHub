@@ -49,5 +49,22 @@
     "auto_start": false,
     "max_memory_mb": 0,
     "memory_limit_action": "alert"
+  },
+  {
+    "id": "rea_hub",
+    "name": "REA 逆向工程分析控制台",
+    "description": "基于 REA (Reverse Engineer Anything) 的全平台逆向分析系统，支持 APK、Mach-O、PE、ASAR 深度反编译与 170+ MCP 动态工具",
+    "category": "security_tool",
+    "icon": "shield-alert",
+    "command": "/bin/bash",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/start_rea.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8877,
+    "url": "http://127.0.0.1:8877",
+    "auto_start": false,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
   }
 ]

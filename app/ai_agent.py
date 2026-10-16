@@ -4,13 +4,39 @@ from typing import AsyncGenerator, List, Dict, Any
 from .config import get_settings
 from .mcp_manager import mcp_manager
 
-async def convert_mcp_tools_to_openai_schema() -> List[dict]:
-    """将注册的 MCP 工具及内置服务控制工具转为 OpenAI tools 格式 (使用缓存以实现毫秒级响应)"""
+async def convert_mcp_tools_to_openai_schema(query: str = "") -> List[dict]:
+    """将注册的 MCP 工具转为 OpenAI tools 格式，内置智能工具路由以避免 170+ 工具超出 LLM 上下文预算"""
     all_tools = await mcp_manager.list_all_tools(force_refresh=False)
     openai_tools = []
 
+    q_lower = (query or "").lower()
+
     for server_id, tools in all_tools.items():
-        for tool in tools:
+        if server_id == "rea-reverse-engineering" and len(tools) > 20:
+            # REA 拥有 170 个工具（完整定义超11万token），采用智能语义路由：
+            # 1. 优先提取核心高频逆向工具
+            # 2. 根据用户 query 动态匹配最相关的专有逆向工具（如 apk, adb, procedure, native, js 等）
+            core_keywords = ["analyze", "apk", "procedure", "native", "search", "decompile", "pseudo", "adb", "class"]
+            scored_tools = []
+            for t in tools:
+                name_l = t["name"].lower()
+                desc_l = (t.get("description") or "").lower()
+                score = 0
+                if any(k in name_l for k in core_keywords):
+                    score += 2
+                if q_lower:
+                    for term in q_lower.replace("/", " ").replace("_", " ").split():
+                        if len(term) >= 2 and (term in name_l or term in desc_l):
+                            score += 5
+                scored_tools.append((score, t))
+            
+            # 按匹配度降序排列，取 Top 16 工具注入 prompt，保持在 ~2000 tokens 以内
+            scored_tools.sort(key=lambda x: x[0], reverse=True)
+            selected_tools = [x[1] for x in scored_tools[:16]]
+        else:
+            selected_tools = tools
+
+        for tool in selected_tools:
             if server_id == "builtin":
                 full_name = tool["name"]
             else:
@@ -21,7 +47,7 @@ async def convert_mcp_tools_to_openai_schema() -> List[dict]:
                 "type": "function",
                 "function": {
                     "name": full_name,
-                    "description": f"[{server_id}] {tool.get('description', '')}",
+                    "description": f"[{server_id}] {tool.get('description', '')[:180]}",
                     "parameters": schema
                 }
             })
@@ -37,8 +63,15 @@ async def chat_with_agent(messages: List[Dict[str, Any]], enable_tools: bool = T
         "Content-Type": "application/json"
     }
 
-    # 毫秒级准备工具列表
-    tools = await convert_mcp_tools_to_openai_schema() if enable_tools else None
+    # 提取用户最新一轮输入，用于精准动态路由工具
+    last_user_query = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            last_user_query = str(msg.get("content") or "")
+            break
+
+    # 准备工具列表
+    tools = await convert_mcp_tools_to_openai_schema(last_user_query) if enable_tools else None
     current_messages = list(messages)
 
     # 最多允许 4 轮工具调用与自我修正循环
