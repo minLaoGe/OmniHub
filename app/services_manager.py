@@ -141,11 +141,13 @@ class ServicesManager:
             cpu_percent, memory_mb = self.get_process_tree_metrics(real_pid)
             if memory_mb > 0 or port_open:
                 sp.status = "RUNNING"
+                sp.last_error = None
             elif sp.status != "ERROR":
                 sp.status = "STOPPED"
         else:
             if port_open:
                 sp.status = "RUNNING"
+                sp.last_error = None
             elif sp.status != "ERROR":
                 sp.status = "STOPPED"
 
