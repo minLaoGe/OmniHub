@@ -689,8 +689,13 @@
         <!-- 顶部模型信息 -->
         <div class="p-3 bg-[#111827] border-b border-gray-800 flex items-center justify-between px-6">
           <div class="flex items-center gap-3">
-            <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+            <div class="w-2.5 h-2.5 rounded-full" :class="isQwenRunning ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'"></div>
             <span class="text-xs text-gray-300 font-medium">模型端点: <span class="font-mono text-blue-400">{{ settings.llm_model_name }}</span> ({{ settings.llm_api_base }})</span>
+            <span v-if="isQwenRunning" class="text-[11px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">🟢 8088 服务在线就绪</span>
+            <div v-else class="flex items-center gap-2">
+              <span class="text-[11px] font-mono text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/40">🔴 8088 离线</span>
+              <button @click="startService('qwen27b')" class="text-[11px] px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium transition-all">一键启动模型</button>
+            </div>
           </div>
 
           <div class="flex items-center gap-2 text-xs text-gray-300">
@@ -709,6 +714,17 @@
 
               <div :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-2.5 max-w-xl text-sm' : 'glass-card text-gray-200 rounded-2xl rounded-tl-none p-4 max-w-2xl text-sm leading-relaxed border border-gray-800/80'">
 
+                <!-- 深度思考过程展示 (Reasoning Tokens) -->
+                <div v-if="msg.reasoning" class="mb-3">
+                  <div @click="msg.showReasoning = !msg.showReasoning" class="flex items-center gap-2 text-xs text-purple-400 cursor-pointer hover:text-purple-300 font-mono py-1 px-2.5 bg-purple-950/40 rounded-lg border border-purple-800/50 w-fit">
+                    <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <span>深度思考过程</span>
+                    <span class="text-[10px] text-gray-400 font-sans">{{ msg.showReasoning ? '▲ 收起' : '▼ 展开' }}</span>
+                  </div>
+                  <pre v-if="msg.showReasoning" class="mt-2 text-xs font-mono bg-black/60 p-3 rounded-xl border border-purple-900/40 text-purple-200/90 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed">{{ msg.reasoning }}</pre>
+                </div>
+
+                <!-- 工具调用展开块 -->
                 <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="space-y-2 mb-3">
                   <div v-for="(tc, tcIdx) in msg.tool_calls" :key="tcIdx"
                     class="bg-gray-900/80 border border-purple-500/30 rounded-xl p-3 text-xs font-mono">
@@ -717,7 +733,7 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                        [MCP 工具调用] {{ tc.server_id }} &rarr; {{ tc.tool_name }}
+                        [MCP 工具调度] {{ tc.server_id }} &rarr; {{ tc.tool_name }}
                       </span>
                       <span :class="tc.status === 'done' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'">
                         {{ tc.status === 'done' ? '执行完成' : '执行中...' }}
@@ -725,6 +741,12 @@
                     </div>
                     <div class="text-[11px] text-gray-400">参数: {{ JSON.stringify(tc.arguments) }}</div>
                   </div>
+                </div>
+
+                <!-- 正在思考呼吸动画 -->
+                <div v-if="aiLoading && !msg.content && !msg.reasoning && (!msg.tool_calls || msg.tool_calls.length === 0)" class="flex items-center gap-2 text-xs text-gray-400 py-1">
+                  <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
+                  <span class="font-mono text-gray-300 animate-pulse">AI 正在深度思考并组织回复中...</span>
                 </div>
 
                 <div class="whitespace-pre-wrap">{{ msg.content }}</div>

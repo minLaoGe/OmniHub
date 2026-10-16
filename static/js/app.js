@@ -67,6 +67,11 @@ const app = createApp({
       return services.value.find(s => s.id === currentWorkspaceId.value) || workspaceServices.value[0];
     });
 
+    const isQwenRunning = computed(() => {
+      const s = services.value.find(item => item.id === 'qwen27b');
+      return s && s.status === 'RUNNING';
+    });
+
     // AI Assistant
     const aiMessages = ref([
       {
@@ -453,6 +458,8 @@ const app = createApp({
       const assistantMsg = {
         role: "assistant",
         content: "",
+        reasoning: "",
+        showReasoning: false,
         tool_calls: []
       };
       aiMessages.value.push(assistantMsg);
@@ -482,7 +489,10 @@ const app = createApp({
             if (!line.trim()) continue;
             try {
               const chunk = JSON.parse(line);
-              if (chunk.type === 'message') {
+              if (chunk.type === 'reasoning_chunk') {
+                assistantMsg.reasoning += chunk.content;
+                assistantMsg.showReasoning = true;
+              } else if (chunk.type === 'content_chunk' || chunk.type === 'message') {
                 assistantMsg.content += chunk.content;
               } else if (chunk.type === 'tool_call_start') {
                 assistantMsg.tool_calls.push({
@@ -505,6 +515,7 @@ const app = createApp({
                 }
               } else if (chunk.type === 'error') {
                 assistantMsg.content += `\n> ⚠️ **错误**: ${chunk.content}`;
+                showToast(`❌ 对话异常: ${chunk.content}`, 'error', 5000);
               }
             } catch (err) {
               console.error("Parse line error:", err, line);
@@ -513,6 +524,7 @@ const app = createApp({
         }
       } catch (e) {
         assistantMsg.content += `\n> ⚠️ 发送消息发生网络异常: ${e}`;
+        showToast(`❌ 网络请求失败: ${e}`, 'error');
       } finally {
         aiLoading.value = false;
         fetchServices();
@@ -654,6 +666,7 @@ const app = createApp({
       currentWorkspaceId,
       currentWorkspaceService,
       openInWorkspace,
+      isQwenRunning,
       aiMessages,
       aiInput,
       aiLoading,

@@ -133,12 +133,15 @@ class MCPManager:
             # return cached if exists
             return self.cached_tools.get(server_id, [])
 
-    async def list_all_tools(self) -> Dict[str, List[dict]]:
+    async def list_all_tools(self, force_refresh: bool = False) -> Dict[str, List[dict]]:
         results = {
             "builtin": self.get_builtin_tools()
         }
         for sid in self.servers:
-            results[sid] = await self.list_tools_for_server(sid)
+            if not force_refresh and sid in self.cached_tools and len(self.cached_tools[sid]) > 0:
+                results[sid] = self.cached_tools[sid]
+            else:
+                results[sid] = await self.list_tools_for_server(sid)
         return results
 
     async def call_tool(self, server_id: str, tool_name: str, arguments: dict) -> dict:
