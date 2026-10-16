@@ -7,6 +7,17 @@ const app = createApp({
     const initialTab = urlParams.get('tab') || 'dashboard';
     const currentTab = ref(initialTab);
 
+    // Global Toast Notification System
+    const toasts = ref([]);
+    let toastIdCounter = 0;
+    const showToast = (message, type = 'info', duration = 3500) => {
+      const id = ++toastIdCounter;
+      toasts.value.push({ id, message, type });
+      setTimeout(() => {
+        toasts.value = toasts.value.filter(t => t.id !== id);
+      }, duration);
+    };
+
     // System stats
     const stats = ref({
       os_name: "macOS",
@@ -28,6 +39,9 @@ const app = createApp({
       if (serviceFilter.value === 'all') return services.value;
       return services.value.filter(s => s.category === serviceFilter.value);
     });
+
+    // Service Action In-Progress Trackers (id -> 'starting' | 'stopping' | 'restarting')
+    const actionLoading = ref({});
 
     // Logs Drawer & WebSocket
     const logsModalOpen = ref(false);
@@ -132,7 +146,16 @@ const app = createApp({
       try {
         const res = await fetch('/api/services');
         if (res.ok) {
-          services.value = await res.json();
+          const list = await res.json();
+          // Keep current action status if still processing
+          services.value = list.map(item => {
+            if (actionLoading.value[item.id]) {
+              const act = actionLoading.value[item.id];
+              item.status = act === 'stopping' ? 'STOPPING' : (act === 'starting' ? 'STARTING' : item.status);
+            }
+            return item;
+          });
+
           if (!currentWorkspaceId.value && workspaceServices.value.length > 0) {
             currentWorkspaceId.value = workspaceServices.value[0].id;
           }
@@ -144,42 +167,91 @@ const app = createApp({
 
     const startService = async (id) => {
       const s = services.value.find(item => item.id === id);
+      const name = s ? s.name : id;
+
+      actionLoading.value[id] = 'starting';
       if (s) s.status = 'STARTING';
+      showToast(`🚀 正在启动服务「${name}」...`, 'info', 2500);
+
       try {
         const res = await fetch(`/api/services/${id}/start`, { method: 'POST' });
         const data = await res.json();
+
+        if (data.success) {
+          showToast(`⏳「${name}」进程已拉起，正在初始化监听...`, 'info', 2000);
+        } else {
+          showToast(`❌ 启动失败: ${data.message}`, 'error', 4000);
+        }
+
         await fetchServices();
 
-        // 延迟 1.5 秒二次确认是否成功运行，如果异常退出则自动弹出错误日志
+        // 1.8秒后二次确认运行状态
         setTimeout(async () => {
+          delete actionLoading.value[id];
           await fetchServices();
           const updated = services.value.find(item => item.id === id);
-          if (updated && updated.status === 'ERROR') {
-            openLogs(updated);
+          if (updated) {
+            if (updated.status === 'RUNNING') {
+              showToast(`✅ 服务「${name}」已成功启动并就绪！(端口: ${updated.port})`, 'success', 3500);
+            } else if (updated.status === 'ERROR') {
+              showToast(`❌ 服务「${name}」启动异常退出，已自动为你打开错误日志`, 'error', 5000);
+              openLogs(updated);
+            }
           }
-        }, 1500);
+        }, 1800);
 
         return data;
       } catch (e) {
-        alert("启动服务请求失败: " + e);
+        delete actionLoading.value[id];
+        showToast(`❌ 请求异常: ${e}`, 'error', 4000);
       }
     };
 
     const stopService = async (id) => {
+      const s = services.value.find(item => item.id === id);
+      const name = s ? s.name : id;
+
+      actionLoading.value[id] = 'stopping';
+      if (s) s.status = 'STOPPING';
+      showToast(`🛑 正在终止服务「${name}」并释放端口占用...`, 'warning', 3000);
+
       try {
         const res = await fetch(`/api/services/${id}/stop`, { method: 'POST' });
+        const data = await res.json();
+
+        delete actionLoading.value[id];
         await fetchServices();
+
+        if (data.success) {
+          showToast(`✅ 服务「${name}」已彻底安全停止，端口已成功释放！`, 'success', 3500);
+        } else {
+          showToast(`❌ 停止服务失败: ${data.message}`, 'error', 4000);
+        }
       } catch (e) {
-        alert("停止服务失败: " + e);
+        delete actionLoading.value[id];
+        showToast(`❌ 停止请求出错: ${e}`, 'error', 4000);
       }
     };
 
     const restartService = async (id) => {
+      const s = services.value.find(item => item.id === id);
+      const name = s ? s.name : id;
+
+      actionLoading.value[id] = 'restarting';
+      showToast(`🔄 正在安全重启服务「${name}」...`, 'info', 3000);
+
       try {
-        await fetch(`/api/services/${id}/restart`, { method: 'POST' });
-        await fetchServices();
+        const res = await fetch(`/api/services/${id}/restart`, { method: 'POST' });
+        const data = await res.json();
+
+        setTimeout(async () => {
+          delete actionLoading.value[id];
+          await fetchServices();
+          showToast(`✅ 服务「${name}」已重启完毕！`, 'success', 3000);
+        }, 1500);
       } catch (e) {
-        alert("重启服务失败: " + e);
+        delete actionLoading.value[id];
+        showToast(`❌ 重启失败: ${e}`, 'error', 4000);
       }
     };
 
@@ -233,7 +305,7 @@ const app = createApp({
     const saveEditService = async () => {
       const form = editServiceForm.value;
       if (!form.port || form.port <= 0) {
-        alert("请输入有效的端口号！");
+        showToast("请输入有效的端口号！", "warning");
         return;
       }
       const argsArray = form.args ? form.args.split(" ").filter(Boolean) : [];
@@ -258,11 +330,12 @@ const app = createApp({
         if (res.ok) {
           editServiceModalOpen.value = false;
           await fetchServices();
+          showToast(`✅ 服务「${form.name}」配置已成功保存！`, 'success');
         } else {
-          alert("保存修改失败");
+          showToast("❌ 保存修改失败", "error");
         }
       } catch (e) {
-        alert("请求异常: " + e);
+        showToast(`❌ 请求异常: ${e}`, 'error');
       }
     };
 
@@ -333,6 +406,7 @@ const app = createApp({
       if (!selectedTool.value || !selectedMCPServer.value) return;
       toolCallLoading.value = true;
       toolCallResult.value = null;
+      showToast(`正在执行 MCP 工具: ${selectedTool.value.name}...`, 'info', 2000);
 
       try {
         const res = await fetch('/api/mcp/call', {
@@ -346,11 +420,17 @@ const app = createApp({
         });
         const data = await res.json();
         toolCallResult.value = data;
+        if (data.success) {
+          showToast(`✅ MCP 工具 ${selectedTool.value.name} 执行完成！`, 'success');
+        } else {
+          showToast(`⚠️ 工具返回错误: ${data.error || '执行未成功'}`, 'error');
+        }
         if (selectedTool.value.name.startsWith('omnihub_')) {
           await fetchServices();
         }
       } catch (e) {
         toolCallResult.value = { success: false, error: String(e) };
+        showToast(`❌ 工具调用异常: ${e}`, 'error');
       } finally {
         toolCallLoading.value = false;
       }
@@ -359,6 +439,7 @@ const app = createApp({
     const openInWorkspace = (service) => {
       currentWorkspaceId.value = service.id;
       currentTab.value = 'workspace';
+      showToast(`已在工作区中加载服务「${service.name}」`, 'info', 2000);
     };
 
     const sendChatMessage = async () => {
@@ -410,6 +491,7 @@ const app = createApp({
                   arguments: chunk.arguments,
                   status: 'running'
                 });
+                showToast(`🤖 AI 正在自主调度工具: ${chunk.tool_name}`, 'info', 2000);
               } else if (chunk.type === 'tool_call_result') {
                 const target = assistantMsg.tool_calls.find(
                   tc => tc.tool_name === chunk.tool_name && tc.status === 'running'
@@ -440,7 +522,7 @@ const app = createApp({
     const saveNewService = async () => {
       const form = newServiceForm.value;
       if (!form.id || !form.name || !form.command) {
-        alert("请完整填写必填字段！");
+        showToast("请完整填写必填字段！", "warning");
         return;
       }
       const argsArray = form.args ? form.args.split(" ").filter(Boolean) : [];
@@ -461,6 +543,7 @@ const app = createApp({
       if (res.ok) {
         newServiceModalOpen.value = false;
         await fetchServices();
+        showToast(`✅ 新服务「${form.name}」已成功挂载！`, 'success');
       }
     };
 
@@ -468,12 +551,13 @@ const app = createApp({
       if (!confirm(`确定要移除服务 ${id} 吗？`)) return;
       await fetch(`/api/services/${id}`, { method: 'DELETE' });
       await fetchServices();
+      showToast(`已删除服务 ${id}`, 'info');
     };
 
     const saveNewMCP = async () => {
       const form = newMCPForm.value;
       if (!form.id || !form.name || !form.command) {
-        alert("请完整填写必填字段！");
+        showToast("请完整填写必填字段！", "warning");
         return;
       }
       const argsArray = form.args ? form.args.split(" ").filter(Boolean) : [];
@@ -491,6 +575,7 @@ const app = createApp({
         newMCPModalOpen.value = false;
         await fetchMCPServers();
         await fetchMCPTools();
+        showToast(`✅ MCP 服务「${form.name}」注册成功！`, 'success');
       }
     };
 
@@ -499,6 +584,7 @@ const app = createApp({
       await fetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
       await fetchMCPServers();
       await fetchMCPTools();
+      showToast(`已移除 MCP 服务器 ${id}`, 'info');
     };
 
     const loadSettings = async () => {
@@ -532,10 +618,13 @@ const app = createApp({
 
     return {
       currentTab,
+      toasts,
+      showToast,
       stats,
       services,
       serviceFilter,
       filteredServices,
+      actionLoading,
       logsModalOpen,
       activeLogService,
       logLines,

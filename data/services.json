@@ -13,7 +13,7 @@
     "port": 8088,
     "url": "http://127.0.0.1:8088",
     "auto_start": false,
-    "max_memory_mb": 16384,
+    "max_memory_mb": 0,
     "memory_limit_action": "alert"
   },
   {

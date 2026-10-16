@@ -29,7 +29,18 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="bg-[#0b0f19] text-gray-100 min-h-screen flex antialiased select-none">
-  <div id="app" class="flex w-full h-screen overflow-hidden">
+  <div id="app" class="flex w-full h-screen overflow-hidden relative">
+
+    <!-- 全局现代 Toast 消息提示组件 -->
+    <div class="toast-container">
+      <div v-for="t in toasts" :key="t.id" class="toast-item" :class="t.type">
+        <svg v-if="t.type === 'success'" class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        <svg v-else-if="t.type === 'warning'" class="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <svg v-else-if="t.type === 'error'" class="w-5 h-5 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg v-else class="w-5 h-5 text-blue-400 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <span>{{ t.message }}</span>
+      </div>
+    </div>
 
     <!-- 侧边栏导航 -->
     <aside class="w-64 bg-[#111827] border-r border-gray-800 flex flex-col justify-between shrink-0">
@@ -311,19 +322,27 @@
               </div>
 
               <div class="flex items-center gap-2 pt-2 border-t border-gray-800/80">
-                <button v-if="service.status !== 'RUNNING'" @click="startService(service.id)"
-                  class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- 启动按钮 -->
+                <button v-if="service.status !== 'RUNNING' && service.status !== 'STOPPING'" @click="startService(service.id)"
+                  :disabled="actionLoading[service.id]"
+                  class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
+                  <svg v-if="actionLoading[service.id] === 'starting'" class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   </svg>
-                  启动
+                  <span>{{ actionLoading[service.id] === 'starting' ? '正在启动...' : '启动服务' }}</span>
                 </button>
+
+                <!-- 停止按钮 (包括 STOPPING 过程) -->
                 <button v-else @click="stopService(service.id)"
-                  class="flex-1 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  :disabled="actionLoading[service.id] === 'stopping'"
+                  :class="actionLoading[service.id] === 'stopping' ? 'bg-amber-600/90 text-white cursor-wait' : 'bg-rose-600/80 hover:bg-rose-500 text-white'"
+                  class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
+                  <svg v-if="actionLoading[service.id] === 'stopping'" class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                   </svg>
-                  停止
+                  <span>{{ actionLoading[service.id] === 'stopping' ? '正在停止...' : '停止' }}</span>
                 </button>
 
                 <button @click="openEditService(service)" title="修改端口与内存上限"
@@ -446,20 +465,27 @@
                 <div :class="{'text-rose-400 font-bold': service.memory_exceeded}">RAM: {{ service.memory_mb }} MB</div>
               </div>
 
-              <button v-if="service.status !== 'RUNNING'" @click="startService(service.id)"
-                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <!-- 启动按钮 -->
+              <button v-if="service.status !== 'RUNNING' && service.status !== 'STOPPING'" @click="startService(service.id)"
+                :disabled="actionLoading[service.id]"
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
+                <svg v-if="actionLoading[service.id] === 'starting'" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 </svg>
-                启动
+                <span>{{ actionLoading[service.id] === 'starting' ? '正在启动...' : '启动' }}</span>
               </button>
 
+              <!-- 停止按钮 -->
               <button v-else @click="stopService(service.id)"
-                class="px-3.5 py-2 bg-rose-600/80 hover:bg-rose-500 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                :disabled="actionLoading[service.id] === 'stopping'"
+                :class="actionLoading[service.id] === 'stopping' ? 'bg-amber-600/90 text-white cursor-wait' : 'bg-rose-600/80 hover:bg-rose-500 text-white'"
+                class="px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
+                <svg v-if="actionLoading[service.id] === 'stopping'" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                 </svg>
-                停止
+                <span>{{ actionLoading[service.id] === 'stopping' ? '正在停止...' : '停止' }}</span>
               </button>
 
               <button @click="openEditService(service)" title="修改端口与内存配置"
