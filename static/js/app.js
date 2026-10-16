@@ -32,6 +32,49 @@ const app = createApp({
       total_tools_count: 0
     });
 
+    // OmniHub Root & Project Info
+    const omnihubProject = ref({
+      root_dir: "",
+      platform: "OmniHub",
+      services_file: "",
+      mcp_servers_file: "",
+      os: "",
+      services_count: 0
+    });
+
+    // Copy to clipboard helper
+    const copyText = async (text, label = '路径') => {
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(`📋 已成功复制${label}到剪贴板！`, 'success', 2500);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(`📋 已成功复制${label}到剪贴板！`, 'success', 2500);
+      }
+    };
+
+    // Open directory in native file manager (Finder / File Explorer)
+    const revealService = async (serviceId) => {
+      try {
+        showToast(`📂 正在打开文件管理器定位...`, 'info', 2000);
+        const res = await fetch(`/api/services/${serviceId}/reveal`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`📂 已在系统访达/文件管理器中定位项目目录！`, 'success', 3000);
+        } else {
+          showToast(`⚠️ 定位失败: ${data.message}`, 'error', 3500);
+        }
+      } catch (e) {
+        showToast(`⚠️ 定位出错: ${e}`, 'error', 3500);
+      }
+    };
+
     // Services
     const services = ref([]);
     const serviceFilter = ref('all');
@@ -135,7 +178,17 @@ const app = createApp({
     // Polling timer
     let pollInterval = null;
 
-    // --- Methods ---
+    const fetchOmniHubProject = async () => {
+      try {
+        const res = await fetch('/api/system/project');
+        if (res.ok) {
+          omnihubProject.value = await res.json();
+        }
+      } catch (e) {
+        console.error("fetchOmniHubProject error:", e);
+      }
+    };
+
     const fetchStats = async () => {
       try {
         const res = await fetch('/api/system/stats');
@@ -610,6 +663,7 @@ const app = createApp({
 
     onMounted(async () => {
       await Promise.all([
+        fetchOmniHubProject(),
         fetchStats(),
         fetchServices(),
         fetchMCPServers(),
@@ -632,6 +686,9 @@ const app = createApp({
       currentTab,
       toasts,
       showToast,
+      omnihubProject,
+      copyText,
+      revealService,
       stats,
       services,
       serviceFilter,

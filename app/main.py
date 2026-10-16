@@ -108,6 +108,14 @@ async def stop_service(service_id: str):
 async def restart_service(service_id: str):
     return await services_manager.restart_service(service_id)
 
+@app.get("/api/system/project")
+async def get_omnihub_project_info():
+    return services_manager.get_omnihub_info()
+
+@app.post("/api/services/{service_id}/reveal")
+async def reveal_service_directory(service_id: str):
+    return services_manager.reveal_in_explorer(service_id)
+
 @app.get("/api/services/{service_id}/logs")
 async def get_service_logs(service_id: str, limit: int = 500):
     if service_id not in services_manager.services:

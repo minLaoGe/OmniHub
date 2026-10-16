@@ -199,6 +199,7 @@ class ServicesManager:
 
         max_mem = sp.config.get("max_memory_mb", 0)
         is_exceeded = (max_mem > 0) and (memory_mb > max_mem)
+        path_info = self.resolve_service_paths(sp.config)
 
         return {
             "id": sp.id,
@@ -220,7 +221,97 @@ class ServicesManager:
             "auto_start": sp.config.get("auto_start", False),
             "command": sp.config.get("command"),
             "args": sp.config.get("args", []),
-            "cwd": sp.config.get("cwd")
+            "cwd": path_info["cwd"],
+            "project_path": path_info["project_path"],
+            "entry_script": path_info["entry_script"],
+            "path_exists": path_info["path_exists"],
+            "key_files": path_info["key_files"]
+        }
+
+    def resolve_service_paths(self, config: dict) -> dict:
+        """解析并精确推断服务的项目根目录、工作目录与入口脚本绝对路径"""
+        cwd = config.get("cwd") or str(Path.cwd())
+        args = config.get("args") or []
+        entry_script = None
+
+        # 检查 args 中是否有脚本或主程序文件
+        for arg in args:
+            if isinstance(arg, str):
+                p = Path(arg)
+                if not p.is_absolute() and cwd:
+                    p = Path(cwd) / p
+                if p.is_file():
+                    entry_script = str(p.resolve())
+                    break
+
+        # 智能推断 project_path (项目源码/模块所在具体目录)
+        project_path = cwd
+        sid = config.get("id", "").lower()
+        cwd_p = Path(cwd)
+        
+        if "cleaner" in sid and (cwd_p / "cleaner").is_dir():
+            project_path = str((cwd_p / "cleaner").resolve())
+        elif "rea" in sid and (cwd_p / "rea_service").is_dir():
+            project_path = str((cwd_p / "rea_service").resolve())
+        elif entry_script:
+            script_parent = Path(entry_script).parent
+            if script_parent.is_dir() and script_parent != cwd_p and not str(script_parent).endswith("/bin"):
+                project_path = str(script_parent.resolve())
+
+        exists = Path(project_path).exists() if project_path else False
+
+        # 获取该工程目录下关键标志文件
+        key_files = []
+        if exists and Path(project_path).is_dir():
+            try:
+                for item in Path(project_path).iterdir():
+                    if item.name.startswith("."):
+                        continue
+                    if item.is_file() and item.suffix in [".py", ".sh", ".json", ".md", ".txt", ".yml", ".toml", ".bat", ".js"]:
+                        key_files.append(item.name)
+            except Exception:
+                pass
+
+        return {
+            "project_path": project_path,
+            "cwd": cwd,
+            "entry_script": entry_script,
+            "path_exists": exists,
+            "key_files": sorted(key_files)[:8]
+        }
+
+    def reveal_in_explorer(self, path_or_service_id: str) -> dict:
+        """在系统文件浏览器 (macOS Finder / Windows 资源管理器) 中定位并打开该项目目录"""
+        target_path = path_or_service_id
+        if path_or_service_id in self.services:
+            path_info = self.resolve_service_paths(self.services[path_or_service_id].config)
+            target_path = path_info.get("project_path") or path_info.get("cwd")
+
+        if not target_path or not Path(target_path).exists():
+            return {"success": False, "error": f"Path not found on disk: {target_path}"}
+
+        try:
+            if CURRENT_OS == "Darwin":
+                subprocess.run(["open", str(target_path)], check=True)
+            elif CURRENT_OS == "Windows":
+                subprocess.run(["explorer", str(target_path)], check=True)
+            else:
+                subprocess.run(["xdg-open", str(target_path)], check=True)
+            return {"success": True, "message": f"Opened {target_path} in file explorer", "path": str(target_path)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_omnihub_info(self) -> dict:
+        """获取 OmniHub 自身的根工程路径与核心元数据"""
+        root_dir = Path(__file__).resolve().parent.parent
+        return {
+            "platform": "OmniHub",
+            "root_dir": str(root_dir),
+            "omnihub_project_path": str(root_dir),
+            "services_file": str(SERVICES_FILE),
+            "mcp_servers_file": str(root_dir / "data" / "mcp_servers.json"),
+            "os": CURRENT_OS,
+            "services_count": len(self.services)
         }
 
     async def list_services(self) -> List[dict]:

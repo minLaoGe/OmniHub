@@ -180,5 +180,76 @@ def get_system_health_metrics() -> Dict[str, Any]:
         "disk_percent": disk.percent
     }
 
+@mcp.tool()
+def get_service_project_path(service_id: str) -> Dict[str, Any]:
+    """
+    Get the exact local filesystem project path, working directory (cwd), and entry script path for any service.
+    Returns:
+    - service_id: Identifier of the service (e.g. 'qwen27b', 'comfyui', 'mac_cleaner', 'rea_hub')
+    - name: Human-readable service name
+    - project_path: Absolute directory path of the service's project workspace
+    - cwd: Working directory configured for process execution
+    - entry_script: Full path to the executable or script
+    - path_exists: Whether the directory exists on local disk
+    - key_files: Prominent code/config files found in the project root
+    """
+    res = _call_hub_api("GET", "/api/services")
+    if res and isinstance(res, list):
+        for s in res:
+            if s.get("id") == service_id:
+                return {
+                    "service_id": s.get("id"),
+                    "name": s.get("name"),
+                    "project_path": s.get("project_path"),
+                    "cwd": s.get("cwd"),
+                    "entry_script": s.get("entry_script"),
+                    "path_exists": s.get("path_exists"),
+                    "port": s.get("port"),
+                    "status": s.get("status"),
+                    "key_files": s.get("key_files", [])
+                }
+
+    # Fallback to local
+    sm = _get_local_services_manager()
+    if service_id in sm.services:
+        cfg = sm.services[service_id].config
+        p_info = sm.resolve_service_paths(cfg)
+        return {
+            "service_id": service_id,
+            "name": cfg.get("name"),
+            "project_path": p_info.get("project_path"),
+            "cwd": p_info.get("cwd"),
+            "entry_script": p_info.get("entry_script"),
+            "path_exists": p_info.get("path_exists"),
+            "port": cfg.get("port"),
+            "status": sm.services[service_id].status,
+            "key_files": p_info.get("key_files", [])
+        }
+    return {"error": f"Service '{service_id}' not found"}
+
+@mcp.tool()
+def get_omnihub_project_path() -> Dict[str, Any]:
+    """
+    Get OmniHub's own root repository and project path, along with configuration files.
+    """
+    res = _call_hub_api("GET", "/api/system/project")
+    if res is not None:
+        return res
+
+    sm = _get_local_services_manager()
+    return sm.get_omnihub_info()
+
+@mcp.tool()
+def reveal_service_in_explorer(service_id: str) -> Dict[str, Any]:
+    """
+    Open the project directory of a service in the host OS file browser (macOS Finder / Windows File Explorer).
+    """
+    res = _call_hub_api("POST", f"/api/services/{service_id}/reveal")
+    if res is not None:
+        return res
+
+    sm = _get_local_services_manager()
+    return sm.reveal_in_explorer(service_id)
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

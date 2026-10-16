@@ -82,6 +82,42 @@ class MCPManager:
                     },
                     "required": ["service_id"]
                 }
+            },
+            {
+                "name": "omnihub_get_service_project_path",
+                "description": "查询指定服务的本地源码项目路径、工作目录(cwd)、启动脚本路径和关键文件列表",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "service_id": {
+                            "type": "string",
+                            "description": "服务唯一标识符，如 'qwen27b', 'comfyui', 'mac_cleaner', 'rea_hub'"
+                        }
+                    },
+                    "required": ["service_id"]
+                }
+            },
+            {
+                "name": "omnihub_get_project_info",
+                "description": "获取 OmniHub 统一中枢平台自身的本地项目根路径及配置文件信息",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "omnihub_reveal_service_in_explorer",
+                "description": "在宿主机文件浏览器(macOS 访达 Finder / Windows 资源管理器)中打开指定服务的项目文件夹",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "service_id": {
+                            "type": "string",
+                            "description": "服务唯一标识符"
+                        }
+                    },
+                    "required": ["service_id"]
+                }
             }
         ]
 
@@ -94,6 +130,21 @@ class MCPManager:
             return await services_manager.stop_service(args.get("service_id"))
         elif name == "omnihub_restart_service":
             return await services_manager.restart_service(args.get("service_id"))
+        elif name == "omnihub_get_service_project_path":
+            sid = args.get("service_id")
+            if sid in services_manager.services:
+                cfg = services_manager.services[sid].config
+                p_info = services_manager.resolve_service_paths(cfg)
+                return {
+                    "service_id": sid,
+                    "name": cfg.get("name"),
+                    **p_info
+                }
+            return {"error": f"Service '{sid}' not found"}
+        elif name == "omnihub_get_project_info":
+            return services_manager.get_omnihub_info()
+        elif name == "omnihub_reveal_service_in_explorer":
+            return services_manager.reveal_in_explorer(args.get("service_id"))
         else:
             raise ValueError(f"Unknown builtin tool: {name}")
 
