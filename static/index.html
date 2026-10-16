@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniHub - 统一大模型与服务中枢平台</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-[#0b0f19] text-gray-100 min-h-screen flex antialiased select-none">
+  <div id="app" class="flex w-full h-screen overflow-hidden">
+
+    <!-- 侧边栏导航 -->
+    <aside class="w-64 bg-[#111827] border-r border-gray-800 flex flex-col justify-between shrink-0">
+      <div>
+        <!-- Logo Header -->
+        <div class="p-5 flex items-center gap-3 border-b border-gray-800/80">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">OmniHub</h1>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="text-xs text-gray-400">大模型与多服务中枢</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded bg-gray-800 border border-gray-700 text-gray-300 font-mono">
+                <span v-if="stats.os_family === 'Darwin'">🍎 Mac</span>
+                <span v-else-if="stats.os_family === 'Windows'">🪟 Win</span>
+                <span v-else>🐧 Linux</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 导航菜单 -->
+        <nav class="p-3 space-y-1.5">
+          <button @click="currentTab = 'dashboard'" :class="{'active': currentTab === 'dashboard'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            仪表盘
+          </button>
+
+          <button @click="currentTab = 'services'" :class="{'active': currentTab === 'services'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            服务管理区
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300 font-mono">{{ services.length }}</span>
+          </button>
+
+          <button @click="currentTab = 'mcp'" :class="{'active': currentTab === 'mcp'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+            </svg>
+            MCP 注册与调试中心
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 font-mono">{{ stats.total_tools_count }}</span>
+          </button>
+
+          <button @click="currentTab = 'workspace'" :class="{'active': currentTab === 'workspace'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            聚合工作区 (WebUI)
+          </button>
+
+          <button @click="currentTab = 'ai'" :class="{'active': currentTab === 'ai'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            AI 智能调度中枢
+          </button>
+        </nav>
+      </div>
+
+      <!-- 底部系统健康监控 -->
+      <div class="p-4 border-t border-gray-800 bg-gray-900/40 text-xs text-gray-400 space-y-2.5">
+        <div class="flex justify-between items-center text-gray-300">
+          <span class="font-medium flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            跨平台兼容运行中
+          </span>
+          <span class="font-mono text-gray-400 text-[11px]">{{ stats.os_name }}</span>
+        </div>
+        <!-- CPU Bar -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span>CPU 负载</span>
+            <span class="font-mono text-gray-300">{{ stats.cpu_percent }}%</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-blue-500 h-full transition-all duration-500" :style="{ width: stats.cpu_percent + '%' }"></div>
+          </div>
+        </div>
+        <!-- Memory Bar -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span>物理内存 ({{ stats.memory.used_gb }} / {{ stats.memory.total_gb }} GB)</span>
+            <span class="font-mono text-gray-300">{{ stats.memory.percent }}%</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-purple-500 h-full transition-all duration-500" :style="{ width: stats.memory.percent + '%' }"></div>
+          </div>
+        </div>
+        <!-- Disk Bar -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span>磁盘可用</span>
+            <span class="font-mono text-gray-300">{{ stats.disk.free_gb }} GB</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-emerald-500 h-full transition-all duration-500" :style="{ width: stats.disk.percent + '%' }"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 主展示区 -->
+    <main class="flex-1 flex flex-col h-screen overflow-y-auto">
+
+      <!-- 顶部 Header 状态条 -->
+      <header class="h-16 border-b border-gray-800/80 px-8 flex items-center justify-between bg-[#111827]/70 backdrop-blur-md sticky top-0 z-30">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-semibold text-white tracking-wide">
+            <span v-if="currentTab === 'dashboard'">系统全景仪表盘</span>
+            <span v-else-if="currentTab === 'services'">服务管理控制台 (端口配置 & 内存配额防护)</span>
+            <span v-else-if="currentTab === 'mcp'">MCP 工具注册与调试大厅</span>
+            <span v-else-if="currentTab === 'workspace'">一体化服务工作区 (WebUI 集成)</span>
+            <span v-else-if="currentTab === 'ai'">AI 智能调度助手 (集成 MCP 工具)</span>
+          </h2>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            统一入口: 9527
+          </span>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            平台: {{ stats.os_name }}
+          </span>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button @click="newServiceModalOpen = true"
+            class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            注册服务
+          </button>
+          <button @click="newMCPModalOpen = true"
+            class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            注册 MCP
+          </button>
+        </div>
+      </header>
+
+      <!-- 视图 1: 仪表盘 -->
+      <section v-if="currentTab === 'dashboard'" class="p-8 space-y-8 max-w-7xl mx-auto w-full">
+        <!-- 统计指标卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+          <div class="glass-card p-5 rounded-2xl flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 uppercase font-medium">运行中服务</p>
+              <h3 class="text-2xl font-bold font-mono text-white">{{ stats.running_services_count }} <span class="text-xs text-gray-500 font-normal">/ {{ stats.services_count }} 个</span></h3>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 uppercase font-medium">可用 MCP 工具</p>
+              <h3 class="text-2xl font-bold font-mono text-white">{{ stats.total_tools_count }} <span class="text-xs text-gray-500 font-normal">个 ({{ mcpServers.length }} 服务源)</span></h3>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 uppercase font-medium">系统内存使用</p>
+              <h3 class="text-2xl font-bold font-mono text-white">{{ stats.memory.used_gb }} <span class="text-xs text-gray-500 font-normal">/ {{ stats.memory.total_gb }} GB</span></h3>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 uppercase font-medium">磁盘可用空间</p>
+              <h3 class="text-2xl font-bold font-mono text-white">{{ stats.disk.free_gb }} <span class="text-xs text-gray-500 font-normal">GB</span></h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- 核心服务总览网格 -->
+        <div>
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-semibold text-gray-200">受管服务实时状态 & 资源配额</h3>
+            <button @click="fetchServices" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新状态
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div v-for="service in services" :key="service.id"
+              :class="{'border-rose-500/80 shadow-rose-900/30': service.memory_exceeded}"
+              class="glass-card p-6 rounded-2xl border flex flex-col justify-between space-y-4 hover:shadow-xl transition-all relative overflow-hidden">
+
+              <div v-if="service.memory_exceeded" class="absolute top-0 right-0 left-0 bg-rose-600 text-[11px] font-semibold text-white px-3 py-0.5 text-center flex items-center justify-center gap-1">
+                <span>⚠️ 内存已超过设定配额 ({{ service.max_memory_mb }} MB)</span>
+              </div>
+
+              <div :class="{'pt-2': service.memory_exceeded}">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <span class="status-dot" :class="service.status.toLowerCase()"></span>
+                    <h4 class="font-semibold text-base text-white tracking-wide">{{ service.name }}</h4>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="px-2 py-0.5 rounded text-xs font-mono"
+                      :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-800 text-gray-400'">
+                      {{ service.status }}
+                    </span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-400 leading-relaxed mb-4">{{ service.description }}</p>
+
+                <!-- 资源与端口详情 -->
+                <div class="space-y-2 text-xs text-gray-400 bg-gray-900/60 p-3 rounded-xl border border-gray-800 font-mono">
+                  <div class="flex justify-between items-center">
+                    <span>启动端口:</span>
+                    <span class="text-blue-400 font-bold bg-blue-950/40 px-2 py-0.5 rounded border border-blue-900/40">{{ service.port || '无' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span>内存配额:</span>
+                    <span v-if="service.max_memory_mb > 0" class="text-purple-300 font-medium">限 {{ service.max_memory_mb }} MB</span>
+                    <span v-else class="text-gray-500">无上限</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span>当前内存:</span>
+                    <span :class="service.memory_exceeded ? 'text-rose-400 font-bold animate-pulse' : 'text-gray-200'">{{ service.memory_mb }} MB</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span>CPU 占用:</span>
+                    <span class="text-gray-200">{{ service.cpu_percent }}%</span>
+                  </div>
+
+                  <!-- 内存进度条 -->
+                  <div v-if="service.max_memory_mb > 0" class="pt-1">
+                    <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div :class="service.memory_exceeded ? 'bg-rose-500' : 'bg-purple-500'" class="h-full transition-all"
+                        :style="{ width: Math.min(100, Math.round((service.memory_mb / service.max_memory_mb) * 100)) + '%' }"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 pt-2 border-t border-gray-800/80">
+                <button v-if="service.status !== 'RUNNING'" @click="startService(service.id)"
+                  class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  </svg>
+                  启动
+                </button>
+                <button v-else @click="stopService(service.id)"
+                  class="flex-1 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                  停止
+                </button>
+
+                <button @click="openEditService(service)" title="修改端口与内存上限"
+                  class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-all flex items-center gap-1">
+                  <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+
+                <button @click="openLogs(service)" title="查看日志"
+                  class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </button>
+
+                <button v-if="service.url" @click="openInWorkspace(service)" title="在统一工作区打开"
+                  class="p-1.5 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg text-xs transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 平台与资源特性提示 -->
+        <div class="glass-card p-6 rounded-2xl border border-gray-800/80 bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-indigo-900/20">
+          <div class="flex items-center justify-between">
+            <div class="space-y-1">
+              <h4 class="text-base font-semibold text-white flex items-center gap-2">
+                <span>跨平台与内存防护已全面生效</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Windows / macOS / Linux</span>
+              </h4>
+              <p class="text-xs text-gray-400">你可以在「服务管理区」点击任意服务的齿轮按钮随时更改启动端口，或设定进程内存限额（超限告警 / 自动重启 / 安全停止）。</p>
+            </div>
+            <button @click="currentTab = 'services'"
+              class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-500/20 transition-all">
+              配置服务配额
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 视图 2: 服务管理区 -->
+      <section v-if="currentTab === 'services'" class="p-8 space-y-6 max-w-7xl mx-auto w-full">
+        <!-- 筛选与控制条 -->
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2">
+            <button @click="serviceFilter = 'all'" :class="serviceFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-800/80 text-gray-400 hover:text-white'"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all">全部服务</button>
+            <button @click="serviceFilter = 'ai_model'" :class="serviceFilter === 'ai_model' ? 'bg-blue-600 text-white' : 'bg-gray-800/80 text-gray-400 hover:text-white'"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all">大模型推理</button>
+            <button @click="serviceFilter = 'image_generation'" :class="serviceFilter === 'image_generation' ? 'bg-blue-600 text-white' : 'bg-gray-800/80 text-gray-400 hover:text-white'"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all">图像生成</button>
+            <button @click="serviceFilter = 'system_tool'" :class="serviceFilter === 'system_tool' ? 'bg-blue-600 text-white' : 'bg-gray-800/80 text-gray-400 hover:text-white'"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all">系统工具</button>
+          </div>
+        </div>
+
+        <!-- 详细列表 -->
+        <div class="space-y-4">
+          <div v-for="service in filteredServices" :key="service.id"
+            :class="{'border-rose-500': service.memory_exceeded}"
+            class="glass-card p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-gray-700 transition-all">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-xl bg-gray-800/80 border border-gray-700/60 flex items-center justify-center shrink-0 mt-1">
+                <svg v-if="service.category === 'ai_model'" class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <svg v-else-if="service.category === 'image_generation'" class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <svg v-else class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+
+              <div class="space-y-1.5">
+                <div class="flex items-center gap-3">
+                  <h4 class="font-semibold text-white text-base">{{ service.name }}</h4>
+                  <span class="px-2 py-0.5 rounded text-xs font-mono"
+                    :class="service.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-800 text-gray-400'">
+                    {{ service.status }}
+                  </span>
+                  <!-- 端口标签 -->
+                  <span class="text-xs font-mono text-blue-300 bg-blue-900/30 px-2.5 py-0.5 rounded border border-blue-800/40">
+                    端口: {{ service.port }}
+                  </span>
+                  <!-- 内存配额标签 -->
+                  <span class="text-xs font-mono px-2.5 py-0.5 rounded border"
+                    :class="service.max_memory_mb > 0 ? (service.memory_exceeded ? 'bg-rose-900/50 text-rose-300 border-rose-700 animate-pulse' : 'bg-purple-900/30 text-purple-300 border-purple-800/40') : 'bg-gray-800 text-gray-400 border-gray-700'">
+                    内存配额: {{ service.max_memory_mb > 0 ? service.max_memory_mb + ' MB' : '无限制' }}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400 max-w-2xl">{{ service.description }}</p>
+                <div class="text-[11px] font-mono text-gray-500 truncate max-w-xl">
+                  命令: {{ service.command }} {{ (service.args || []).join(' ') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 操作与状态按钮 -->
+            <div class="flex items-center gap-2.5 shrink-0">
+              <div v-if="service.status === 'RUNNING'" class="text-xs font-mono text-right mr-3 text-gray-400">
+                <div>CPU: {{ service.cpu_percent }}%</div>
+                <div :class="{'text-rose-400 font-bold': service.memory_exceeded}">RAM: {{ service.memory_mb }} MB</div>
+              </div>
+
+              <button v-if="service.status !== 'RUNNING'" @click="startService(service.id)"
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                </svg>
+                启动
+              </button>
+
+              <button v-else @click="stopService(service.id)"
+                class="px-3.5 py-2 bg-rose-600/80 hover:bg-rose-500 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+                停止
+              </button>
+
+              <button @click="openEditService(service)" title="修改端口与内存配置"
+                class="px-3 py-2 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl text-xs font-medium transition-all flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                改端口/限内存
+              </button>
+
+              <button @click="openLogs(service)" title="查看日志"
+                class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-medium transition-all">
+                日志
+              </button>
+
+              <button v-if="service.url" @click="openInWorkspace(service)" title="在工作区操作"
+                class="px-3.5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1">
+                内嵌
+              </button>
+
+              <button @click="deleteService(service.id)" title="删除服务配置"
+                class="p-2 text-gray-500 hover:text-rose-400 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 视图 3: MCP 注册与工具中心 -->
+      <section v-if="currentTab === 'mcp'" class="flex-1 flex overflow-hidden">
+        <!-- 左侧：MCP 服务器列表 -->
+        <div class="w-72 bg-[#111827]/60 border-r border-gray-800 p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+              <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">已注册 MCP 服务</span>
+              <button @click="newMCPModalOpen = true" class="text-xs text-purple-400 hover:text-purple-300">+ 添加</button>
+            </div>
+
+            <div class="space-y-1.5">
+              <div v-for="srv in mcpServers" :key="srv.id"
+                @click="selectMCPServer(srv)"
+                :class="selectedMCPServer?.id === srv.id ? 'bg-purple-900/30 border-purple-500/50 text-white' : 'bg-gray-800/40 border-gray-800 text-gray-300 hover:bg-gray-800/80'"
+                class="p-3 rounded-xl border cursor-pointer transition-all">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-semibold text-sm">{{ srv.name }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 bg-gray-900 rounded font-mono text-purple-300">{{ (mcpToolsMap[srv.id] || []).length }} 工具</span>
+                </div>
+                <p class="text-xs text-gray-400 line-clamp-2">{{ srv.description }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 bg-purple-950/20 border border-purple-800/30 rounded-xl text-xs text-purple-300">
+            💡 跨平台兼容标准 MCP 协议，支持 stdio 或 SSE 客户端，可被大模型自主调度！
+          </div>
+        </div>
+
+        <!-- 中间：当前服务器下的工具列表 -->
+        <div class="w-80 bg-[#0d131f] border-r border-gray-800 p-4 flex flex-col shrink-0 overflow-y-auto">
+          <div class="pb-3 border-b border-gray-800 mb-3">
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400">工具列表 ({{ (mcpToolsMap[selectedMCPServer?.id] || []).length }})</h4>
+          </div>
+
+          <div class="space-y-2">
+            <div v-for="tool in (mcpToolsMap[selectedMCPServer?.id] || [])" :key="tool.name"
+              @click="selectTool(tool)"
+              :class="selectedTool?.name === tool.name ? 'bg-blue-900/30 border-blue-500 text-white' : 'bg-gray-900/60 border-gray-800/80 text-gray-300 hover:bg-gray-800/50'"
+              class="p-3 rounded-xl border cursor-pointer transition-all">
+              <div class="font-mono text-xs font-bold text-blue-400 mb-1 flex items-center justify-between">
+                <span>{{ tool.name }}</span>
+              </div>
+              <p class="text-xs text-gray-400 line-clamp-2">{{ tool.description || '暂无描述' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：工具调试与测试运行控制台 (Playground) -->
+        <div class="flex-1 bg-[#0b0f19] p-6 overflow-y-auto flex flex-col justify-between">
+          <div v-if="selectedTool" class="space-y-6">
+            <div class="border-b border-gray-800 pb-4">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="text-xs font-mono px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">MCP TOOL</span>
+                <h3 class="text-xl font-bold font-mono text-white">{{ selectedTool.name }}</h3>
+              </div>
+              <p class="text-sm text-gray-400">{{ selectedTool.description }}</p>
+            </div>
+
+            <!-- 参数表单 -->
+            <div>
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">调用参数配置 (Input Arguments)</h4>
+
+              <div v-if="!selectedTool.inputSchema?.properties || Object.keys(selectedTool.inputSchema.properties).length === 0"
+                class="p-4 bg-gray-900/40 rounded-xl border border-gray-800 text-xs text-gray-400">
+                此工具无必填参数，直接点击下方【执行调用】即可运行。
+              </div>
+
+              <div v-else class="space-y-4">
+                <div v-for="(prop, propKey) in selectedTool.inputSchema.properties" :key="propKey"
+                  class="bg-gray-900/60 p-4 rounded-xl border border-gray-800 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-mono font-medium text-gray-200">
+                      {{ propKey }}
+                      <span v-if="(selectedTool.inputSchema.required || []).includes(propKey)" class="text-rose-400">*</span>
+                    </label>
+                    <span class="text-[11px] font-mono text-gray-500">{{ prop.type }}</span>
+                  </div>
+                  <p v-if="prop.description" class="text-xs text-gray-400">{{ prop.description }}</p>
+
+                  <input v-if="prop.type === 'string'" v-model="toolArgs[propKey]" type="text"
+                    class="w-full bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+                  <input v-else-if="prop.type === 'number' || prop.type === 'integer'" v-model.number="toolArgs[propKey]" type="number"
+                    class="w-full bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+                  <div v-else-if="prop.type === 'boolean'" class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" v-model="toolArgs[propKey]" class="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0">
+                    <span class="text-xs text-gray-300">启用</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 执行按钮 -->
+            <button @click="executeTool" :disabled="toolCallLoading"
+              class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
+              <svg v-if="toolCallLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ toolCallLoading ? '正在执行 MCP 工具...' : '立即执行调用' }}</span>
+            </button>
+
+            <!-- 执行结果展示 -->
+            <div v-if="toolCallResult" class="space-y-2">
+              <div class="flex items-center justify-between">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400">执行结果 (Execution Output)</h4>
+                <span class="px-2 py-0.5 rounded text-[11px] font-mono"
+                  :class="toolCallResult.success ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'">
+                  {{ toolCallResult.success ? 'SUCCESS' : 'FAILED' }}
+                </span>
+              </div>
+              <pre class="terminal-box p-4 rounded-xl max-h-80 overflow-y-auto whitespace-pre-wrap">{{ toolCallResult.content || JSON.stringify(toolCallResult, null, 2) }}</pre>
+            </div>
+          </div>
+
+          <div v-else class="h-full flex items-center justify-center text-gray-500 text-sm">
+            👈 请在左侧选择一个 MCP 工具开始测试
+          </div>
+        </div>
+      </section>
+
+      <!-- 视图 4: 聚合工作区 (WebUI 集成) -->
+      <section v-if="currentTab === 'workspace'" class="flex-1 flex flex-col p-4 overflow-hidden">
+        <!-- 标签选择栏 -->
+        <div class="flex items-center justify-between mb-3 bg-[#111827] p-2 rounded-xl border border-gray-800">
+          <div class="flex items-center gap-2 overflow-x-auto">
+            <button v-for="srv in workspaceServices" :key="srv.id"
+              @click="currentWorkspaceId = srv.id"
+              :class="currentWorkspaceId === srv.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-800/70 text-gray-400 hover:text-white'"
+              class="px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 shrink-0">
+              <span class="status-dot" :class="srv.status.toLowerCase()"></span>
+              {{ srv.name }}
+            </button>
+          </div>
+
+          <div v-if="currentWorkspaceService" class="flex items-center gap-2">
+            <span class="text-xs text-gray-400 font-mono hidden md:inline">{{ currentWorkspaceService.url }}</span>
+            <a :href="currentWorkspaceService.url" target="_blank"
+              class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-all" title="在新窗口打开">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- 内嵌 Iframe 容器 -->
+        <div class="flex-1 workspace-iframe-container relative">
+          <div v-if="!currentWorkspaceService || currentWorkspaceService.status !== 'RUNNING'"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-[#0b0f19]/90 z-10 space-y-3">
+            <div class="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p class="text-sm text-gray-300 font-medium">服务当前未在运行</p>
+            <p class="text-xs text-gray-500">点击下方按钮启动后即可直接在当前界面操作</p>
+            <button v-if="currentWorkspaceService" @click="startService(currentWorkspaceService.id)"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all">
+              立即启动该服务
+            </button>
+          </div>
+
+          <iframe v-if="currentWorkspaceService" :src="`/proxy/${currentWorkspaceService.id}/`" class="workspace-iframe"></iframe>
+        </div>
+      </section>
+
+      <!-- 视图 5: AI 智能调度助手 -->
+      <section v-if="currentTab === 'ai'" class="flex-1 flex flex-col h-full overflow-hidden">
+        <!-- 顶部模型信息 -->
+        <div class="p-3 bg-[#111827] border-b border-gray-800 flex items-center justify-between px-6">
+          <div class="flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+            <span class="text-xs text-gray-300 font-medium">模型端点: <span class="font-mono text-blue-400">{{ settings.llm_model_name }}</span> ({{ settings.llm_api_base }})</span>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs text-gray-300">
+            <input type="checkbox" v-model="enableAITools" id="toggleTools" class="rounded bg-gray-800 border-gray-700 text-purple-600 focus:ring-0">
+            <label for="toggleTools" class="cursor-pointer">允许 AI 自动调度 MCP 工具与本地服务</label>
+          </div>
+        </div>
+
+        <!-- 消息流容器 -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-5 max-w-4xl mx-auto w-full">
+          <div v-for="(msg, idx) in aiMessages" :key="idx" class="space-y-3">
+            <div class="flex items-start gap-3" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+              <div v-if="msg.role === 'assistant'" class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">
+                AI
+              </div>
+
+              <div :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-2.5 max-w-xl text-sm' : 'glass-card text-gray-200 rounded-2xl rounded-tl-none p-4 max-w-2xl text-sm leading-relaxed border border-gray-800/80'">
+
+                <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="space-y-2 mb-3">
+                  <div v-for="(tc, tcIdx) in msg.tool_calls" :key="tcIdx"
+                    class="bg-gray-900/80 border border-purple-500/30 rounded-xl p-3 text-xs font-mono">
+                    <div class="flex items-center justify-between text-purple-300 mb-1">
+                      <span class="flex items-center gap-1.5 font-bold">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        [MCP 工具调用] {{ tc.server_id }} &rarr; {{ tc.tool_name }}
+                      </span>
+                      <span :class="tc.status === 'done' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'">
+                        {{ tc.status === 'done' ? '执行完成' : '执行中...' }}
+                      </span>
+                    </div>
+                    <div class="text-[11px] text-gray-400">参数: {{ JSON.stringify(tc.arguments) }}</div>
+                  </div>
+                </div>
+
+                <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+              </div>
+
+              <div v-if="msg.role === 'user'" class="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shrink-0 text-white text-xs font-bold">
+                ME
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 快捷操作指令提示 -->
+        <div class="px-6 py-2 border-t border-gray-800 bg-[#111827]/40 flex items-center gap-2 overflow-x-auto text-xs text-gray-400">
+          <span class="shrink-0 text-gray-500">快捷建议:</span>
+          <button @click="aiInput = '请帮我扫描并分析当前 Mac 磁盘的大文件与 AI 模型缓存'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">🔍 扫描磁盘与AI缓存</button>
+          <button @click="aiInput = '列出当前所有本地服务的运行状态'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">📋 查看服务状态</button>
+          <button @click="aiInput = '帮我启动 ComfyUI 图像生成服务'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">🚀 启动 ComfyUI</button>
+          <button @click="aiInput = '检查当前系统的 CPU 与内存使用情况'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">📊 系统健康指标</button>
+        </div>
+
+        <!-- 输入框 -->
+        <div class="p-4 bg-[#111827] border-t border-gray-800">
+          <div class="max-w-4xl mx-auto flex gap-3">
+            <input v-model="aiInput" @keydown.enter.prevent="sendChatMessage" type="text"
+              placeholder="对 AI 下达指令（例如：'帮我启动 ComfyUI' 或 '体检 Mac 磁盘大模型权重'）..."
+              class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500">
+            <button @click="sendChatMessage" :disabled="aiLoading"
+              class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
+              <span>发送</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 模态框: 实时日志抽屉 -->
+    <div v-if="logsModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#0f172a] border border-gray-800 rounded-2xl w-full max-w-4xl h-[75vh] flex flex-col shadow-2xl overflow-hidden">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/60">
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+            <h3 class="text-sm font-semibold text-white">实时控制台日志: {{ activeLogService?.name }}</h3>
+          </div>
+          <button @click="closeLogs" class="text-gray-400 hover:text-white text-xs px-2.5 py-1 bg-gray-800 rounded-lg">关闭</button>
+        </div>
+        <div id="logContainer" class="flex-1 p-4 bg-[#030712] font-mono text-xs overflow-y-auto space-y-1 text-emerald-400 leading-relaxed">
+          <div v-for="(line, lidx) in logLines" :key="lidx">{{ line }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框: 修改服务端口与内存限制 (核心功能) -->
+    <div v-if="editServiceModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#111827] border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            修改服务配置与资源配额
+          </h3>
+          <span class="text-xs font-mono text-gray-400 bg-gray-800 px-2 py-0.5 rounded">{{ editServiceForm.id }}</span>
+        </div>
+
+        <div class="space-y-4 text-xs">
+          <!-- 端口修改 -->
+          <div class="bg-blue-950/20 border border-blue-900/40 p-3.5 rounded-xl space-y-1.5">
+            <label class="block font-semibold text-blue-300">启动端口 (Port)</label>
+            <p class="text-gray-400 text-[11px]">更改后，系统启动该服务时将自动绑定此新端口，且工作区内嵌地址自动同步。</p>
+            <input v-model.number="editServiceForm.port" type="number" min="1024" max="65535"
+              class="w-full bg-[#0b0f19] border border-blue-800 rounded-lg px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-blue-500">
+          </div>
+
+          <!-- 内存占用限制 -->
+          <div class="bg-purple-950/20 border border-purple-900/40 p-3.5 rounded-xl space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label class="font-semibold text-purple-300">内存限制配额 (MB)</label>
+              <span class="text-gray-400 text-[11px] font-mono">0 表示不限制</span>
+            </div>
+            <p class="text-gray-400 text-[11px]">跨平台后台守卫监控整个进程树 RSS 内存，超出阈值时执行安全策略。</p>
+
+            <!-- 快捷预设按钮 -->
+            <div class="flex gap-2">
+              <button type="button" @click="editServiceForm.max_memory_mb = 0" :class="editServiceForm.max_memory_mb === 0 ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'" class="px-2.5 py-1 rounded text-[11px] transition-all">不限</button>
+              <button type="button" @click="editServiceForm.max_memory_mb = 2048" :class="editServiceForm.max_memory_mb === 2048 ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'" class="px-2.5 py-1 rounded text-[11px] transition-all">2 GB</button>
+              <button type="button" @click="editServiceForm.max_memory_mb = 4096" :class="editServiceForm.max_memory_mb === 4096 ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'" class="px-2.5 py-1 rounded text-[11px] transition-all">4 GB</button>
+              <button type="button" @click="editServiceForm.max_memory_mb = 8192" :class="editServiceForm.max_memory_mb === 8192 ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'" class="px-2.5 py-1 rounded text-[11px] transition-all">8 GB</button>
+              <button type="button" @click="editServiceForm.max_memory_mb = 16384" :class="editServiceForm.max_memory_mb === 16384 ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'" class="px-2.5 py-1 rounded text-[11px] transition-all">16 GB</button>
+            </div>
+
+            <input v-model.number="editServiceForm.max_memory_mb" type="number" min="0" step="512"
+              class="w-full bg-[#0b0f19] border border-purple-800 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-purple-500">
+
+            <!-- 超限保护动作 -->
+            <div class="pt-1">
+              <label class="block text-gray-300 mb-1">内存超限保护策略</label>
+              <select v-model="editServiceForm.memory_limit_action" class="w-full bg-[#0b0f19] border border-gray-700 rounded-lg p-2 text-white">
+                <option value="alert">⚠️ 仅记录日志并在界面红色告警 (不影响服务)</option>
+                <option value="restart">🔄 自动重启服务释放内存 (推荐大模型)</option>
+                <option value="stop">🛑 自动安全终止服务 (防止整机卡死崩溃)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 基础信息 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">服务显示名称</label>
+              <input v-model="editServiceForm.name" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">服务类型</label>
+              <select v-model="editServiceForm.category" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+                <option value="ai_model">大模型推理</option>
+                <option value="image_generation">图像生成</option>
+                <option value="system_tool">系统工具</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3 border-t border-gray-800">
+          <button @click="editServiceModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs">取消</button>
+          <button @click="saveEditService" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-purple-500/20">保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框: 注册新服务 -->
+    <div v-if="newServiceModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#111827] border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+        <h3 class="text-base font-bold text-white">注册新的后台服务</h3>
+        <div class="space-y-3 text-xs">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">服务 ID (英文唯一)</label>
+              <input v-model="newServiceForm.id" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">服务显示名称</label>
+              <input v-model="newServiceForm.name" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">启动端口</label>
+              <input v-model.number="newServiceForm.port" type="number" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">内存上限 (MB，0为不限)</label>
+              <input v-model.number="newServiceForm.max_memory_mb" type="number" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-gray-400 mb-1">启动程序/Shell (Windows可填 python 或 cmd.exe，Mac/Linux可填 python3 或 /bin/bash)</label>
+            <input v-model="newServiceForm.command" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">启动参数或脚本 (可用 {port} 自动替换端口)</label>
+            <input v-model="newServiceForm.args" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">运行工作目录</label>
+            <input v-model="newServiceForm.cwd" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3">
+          <button @click="newServiceModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs">取消</button>
+          <button @click="saveNewService" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">保存并添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框: 注册 MCP Server -->
+    <div v-if="newMCPModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#111827] border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+        <h3 class="text-base font-bold text-white">注册外部 MCP Server</h3>
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-gray-400 mb-1">MCP ID (英文唯一)</label>
+            <input v-model="newMCPForm.id" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">MCP 名称</label>
+            <input v-model="newMCPForm.name" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">描述信息</label>
+            <input v-model="newMCPForm.description" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">执行程序 (如 python, python3 或 npx)</label>
+            <input v-model="newMCPForm.command" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">参数 (以空格隔开)</label>
+            <input v-model="newMCPForm.args" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3">
+          <button @click="newMCPModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs">取消</button>
+          <button @click="saveNewMCP" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold">注册 MCP</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

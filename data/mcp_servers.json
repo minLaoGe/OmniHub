@@ -1,0 +1,25 @@
+[
+  {
+    "id": "mac-disk-cleaner",
+    "name": "Mac 磁盘与AI缓存清理器 (MCP)",
+    "description": "提供磁盘容量体检、大模型权重扫描、大文件安全清理与 Finder 定位等 MCP 工具",
+    "type": "stdio",
+    "command": "/Users/minfengyu/.pyenv/versions/3.10.6/bin/python3",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/cleaner_mcp_server.py"
+    ],
+    "env": {},
+    "enabled": true
+  },
+  {
+    "id": "omnihub-service-manager",
+    "name": "OmniHub 服务管理与控制中心 (MCP)",
+    "description": "专为 AI Agent 打造的标准 MCP 服务，支持查询、启动、停止、配置端口、限制内存与查看日志",
+    "type": "stdio",
+    "command": "/Users/minfengyu/.pyenv/versions/3.10.6/bin/python3",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/omnihub_mcp_server.py"
+    ],
+    "enabled": true
+  }
+]
