@@ -1,0 +1,97 @@
+[
+  {
+    "id": "qwen27b",
+    "name": "Qwen3.8-27B 本地大模型推理",
+    "description": "基于 llama-server 驱动的 Qwen3.8-27B 高性能本地推理 API 服务 (OpenAI兼容)",
+    "category": "ai_model",
+    "icon": "bot",
+    "command": "/bin/bash",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/server.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8088,
+    "url": "http://127.0.0.1:8088",
+    "auto_start": false,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
+  },
+  {
+    "id": "comfyui",
+    "name": "ComfyUI 图像生成平台",
+    "description": "基于节点流的 AI 绘画与多模态图像生成工作流系统 (集成 Qwen-Image)",
+    "category": "image_generation",
+    "icon": "image",
+    "command": "/bin/zsh",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/start_comfyui.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8188,
+    "url": "http://127.0.0.1:8188",
+    "auto_start": false,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
+  },
+  {
+    "id": "mac_cleaner",
+    "name": "Mac 磁盘与模型清理助手",
+    "description": "专注于大模型权重、缓存及超大文件的扫描、分析与智能清理 Web 版",
+    "category": "system_tool",
+    "icon": "hard-drive",
+    "command": "/bin/bash",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/start_cleaner.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8899,
+    "url": "http://127.0.0.1:8899",
+    "auto_start": false,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
+  },
+  {
+    "id": "rea_hub",
+    "name": "REA 逆向工程分析控制台",
+    "description": "基于 REA (Reverse Engineer Anything) 的全平台逆向分析系统，支持 APK、Mach-O、PE、ASAR 深度反编译与 170+ MCP 动态工具",
+    "category": "security_tool",
+    "icon": "shield-alert",
+    "command": "/bin/bash",
+    "args": [
+      "/Users/minfengyu/files/Antigravty/start_rea.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8877,
+    "url": "http://127.0.0.1:8877",
+    "auto_start": false,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
+  },
+  {
+    "id": "rea-mcp-http",
+    "name": "REA MCP 本地 HTTP 桥接",
+    "description": "为 llama-ui 提供 REA MCP，仅监听 127.0.0.1:8878",
+    "category": "security_tool",
+    "icon": "shield-alert",
+    "command": "/Users/minfengyu/.local/bin/uvx",
+    "args": [
+      "mcp-proxy==0.13.0",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8878",
+      "--allow-origin",
+      "http://localhost:8088",
+      "http://127.0.0.1:8088",
+      "--",
+      "/bin/bash",
+      "/Users/minfengyu/files/Antigravty/rea_mcp.sh"
+    ],
+    "cwd": "/Users/minfengyu/files/Antigravty",
+    "port": 8878,
+    "url": "http://127.0.0.1:8878",
+    "auto_start": true,
+    "max_memory_mb": 0,
+    "memory_limit_action": "alert"
+  }
+]

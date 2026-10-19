@@ -17,10 +17,14 @@ class MCPManager:
 
     def load_servers(self):
         if not MCP_SERVERS_FILE.exists():
+            MCP_SERVERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(MCP_SERVERS_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
             return
         try:
             with open(MCP_SERVERS_FILE, "r", encoding="utf-8") as f:
                 servers = json.load(f)
+            self.servers.clear()
             for s in servers:
                 self.servers[s["id"]] = s
         except Exception as e:

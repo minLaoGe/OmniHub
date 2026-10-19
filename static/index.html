@@ -266,6 +266,20 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <!-- 暂无服务占位引导 -->
+            <div v-if="services.length === 0" class="col-span-full py-12 px-6 text-center glass-card rounded-2xl border border-dashed border-gray-800">
+              <div class="w-12 h-12 mx-auto rounded-xl bg-gray-800/80 flex items-center justify-center text-gray-500 mb-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <h4 class="text-sm font-semibold text-gray-300 mb-1">暂无受管服务</h4>
+              <p class="text-xs text-gray-500 mb-4 max-w-sm mx-auto">尚未注册任何本地大模型或后台服务，点击下方按钮即可添加您的首个服务。</p>
+              <button @click="newServiceModalOpen = true" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20">
+                + 注册首个服务
+              </button>
+            </div>
+
             <div v-for="service in services" :key="service.id"
               :class="{'border-rose-500/80 shadow-rose-900/30': service.memory_exceeded}"
               class="glass-card p-6 rounded-2xl border flex flex-col justify-between space-y-4 hover:shadow-xl transition-all relative overflow-hidden">
@@ -432,6 +446,22 @@
 
         <!-- 详细列表 -->
         <div class="space-y-4">
+          <!-- 暂无服务占位引导 -->
+          <div v-if="filteredServices.length === 0" class="py-16 px-6 text-center glass-card rounded-2xl border border-dashed border-gray-800">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-800/60 flex items-center justify-center text-gray-500 mb-4">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <h4 class="text-base font-semibold text-gray-300 mb-1">暂未添加任何服务</h4>
+            <p class="text-xs text-gray-500 mb-4 max-w-md mx-auto">
+              {{ serviceFilter === 'all' ? '您可以注册本地大模型推理 (llama-server / ollama)、AI 绘画 (ComfyUI) 或任何自定义后端脚本。' : '当前分类下暂无服务。' }}
+            </p>
+            <button @click="newServiceModalOpen = true" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-medium inline-flex items-center gap-2 transition-all shadow-md shadow-blue-500/20">
+              + 注册新服务
+            </button>
+          </div>
+
           <div v-for="service in filteredServices" :key="service.id"
             :class="{'border-rose-500': service.memory_exceeded}"
             class="glass-card p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-gray-700 transition-all">
@@ -580,8 +610,13 @@
                 :class="selectedMCPServer?.id === srv.id ? 'bg-purple-900/30 border-purple-500/50 text-white' : 'bg-gray-800/40 border-gray-800 text-gray-300 hover:bg-gray-800/80'"
                 class="p-3 rounded-xl border cursor-pointer transition-all">
                 <div class="flex items-center justify-between mb-1">
-                  <span class="font-semibold text-sm">{{ srv.name }}</span>
-                  <span class="text-[10px] px-1.5 py-0.5 bg-gray-900 rounded font-mono text-purple-300">{{ (mcpToolsMap[srv.id] || []).length }} 工具</span>
+                  <span class="font-semibold text-sm truncate mr-1">{{ srv.name }}</span>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <span class="text-[10px] px-1.5 py-0.5 bg-gray-900 rounded font-mono text-purple-300">{{ (mcpToolsMap[srv.id] || []).length }} 工具</span>
+                    <button v-if="srv.id !== 'builtin'" @click.stop="deleteMCPServer(srv.id)" title="删除此 MCP 注册" class="text-gray-500 hover:text-rose-400 p-0.5 transition-colors">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-400 line-clamp-2">{{ srv.description }}</p>
               </div>
@@ -599,7 +634,15 @@
             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400">工具列表 ({{ (mcpToolsMap[selectedMCPServer?.id] || []).length }})</h4>
           </div>
 
-          <div class="space-y-2">
+          <!-- 暂无工具占位提示 -->
+          <div v-if="!selectedMCPServer" class="py-12 px-4 text-center text-gray-500 text-xs">
+            👈 请在左侧选择 MCP 服务
+          </div>
+          <div v-else-if="(mcpToolsMap[selectedMCPServer?.id] || []).length === 0" class="py-12 px-4 text-center text-gray-500 text-xs">
+            该 MCP 服务暂未暴露可用工具
+          </div>
+
+          <div v-else class="space-y-2">
             <div v-for="tool in (mcpToolsMap[selectedMCPServer?.id] || [])" :key="tool.name"
               @click="selectTool(tool)"
               :class="selectedTool?.name === tool.name ? 'bg-blue-900/30 border-blue-500 text-white' : 'bg-gray-900/60 border-gray-800/80 text-gray-300 hover:bg-gray-800/50'"
@@ -687,48 +730,64 @@
 
       <!-- 视图 4: 聚合工作区 (WebUI 集成) -->
       <section v-if="currentTab === 'workspace'" class="flex-1 flex flex-col p-4 overflow-hidden">
-        <!-- 标签选择栏 -->
-        <div class="flex items-center justify-between mb-3 bg-[#111827] p-2 rounded-xl border border-gray-800">
-          <div class="flex items-center gap-2 overflow-x-auto">
-            <button v-for="srv in workspaceServices" :key="srv.id"
-              @click="currentWorkspaceId = srv.id"
-              :class="currentWorkspaceId === srv.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-800/70 text-gray-400 hover:text-white'"
-              class="px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 shrink-0">
-              <span class="status-dot" :class="srv.status.toLowerCase()"></span>
-              {{ srv.name }}
-            </button>
+        <!-- 暂无可用工作区服务的空状态 -->
+        <div v-if="workspaceServices.length === 0" class="flex-1 flex flex-col items-center justify-center glass-card rounded-2xl border border-dashed border-gray-800 p-8 text-center">
+          <div class="w-16 h-16 rounded-2xl bg-gray-800/60 flex items-center justify-center text-gray-500 mb-4">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
           </div>
-
-          <div v-if="currentWorkspaceService" class="flex items-center gap-2">
-            <span class="text-xs text-gray-400 font-mono hidden md:inline">{{ currentWorkspaceService.url }}</span>
-            <a :href="currentWorkspaceService.url" target="_blank"
-              class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-all" title="在新窗口打开">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
-          </div>
+          <h3 class="text-base font-semibold text-gray-200 mb-1">聚合工作区暂无可用 Web 服务</h3>
+          <p class="text-xs text-gray-400 mb-5 max-w-md">当前尚未注册包含 Web 界面访问地址（URL）的服务。注册并启动具有 Web 端口的服务后，可在此一站式聚合操作。</p>
+          <button @click="currentTab = 'services'" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-blue-500/20">
+            前往「服务管理区」添加
+          </button>
         </div>
 
-        <!-- 内嵌 Iframe 容器 -->
-        <div class="flex-1 workspace-iframe-container relative">
-          <div v-if="!currentWorkspaceService || currentWorkspaceService.status !== 'RUNNING'"
-            class="absolute inset-0 flex flex-col items-center justify-center bg-[#0b0f19]/90 z-10 space-y-3">
-            <div class="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+        <template v-else>
+          <!-- 标签选择栏 -->
+          <div class="flex items-center justify-between mb-3 bg-[#111827] p-2 rounded-xl border border-gray-800">
+            <div class="flex items-center gap-2 overflow-x-auto">
+              <button v-for="srv in workspaceServices" :key="srv.id"
+                @click="currentWorkspaceId = srv.id"
+                :class="currentWorkspaceId === srv.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-800/70 text-gray-400 hover:text-white'"
+                class="px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 shrink-0">
+                <span class="status-dot" :class="srv.status.toLowerCase()"></span>
+                {{ srv.name }}
+              </button>
             </div>
-            <p class="text-sm text-gray-300 font-medium">服务当前未在运行</p>
-            <p class="text-xs text-gray-500">点击下方按钮启动后即可直接在当前界面操作</p>
-            <button v-if="currentWorkspaceService" @click="startService(currentWorkspaceService.id)"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all">
-              立即启动该服务
-            </button>
+
+            <div v-if="currentWorkspaceService" class="flex items-center gap-2">
+              <span class="text-xs text-gray-400 font-mono hidden md:inline">{{ currentWorkspaceService.url }}</span>
+              <a :href="currentWorkspaceService.url" target="_blank"
+                class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-all" title="在新窗口打开">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
           </div>
 
-          <iframe v-if="currentWorkspaceService" :src="`/proxy/${currentWorkspaceService.id}/`" class="workspace-iframe"></iframe>
-        </div>
+          <!-- 内嵌 Iframe 容器 -->
+          <div class="flex-1 workspace-iframe-container relative">
+            <div v-if="!currentWorkspaceService || currentWorkspaceService.status !== 'RUNNING'"
+              class="absolute inset-0 flex flex-col items-center justify-center bg-[#0b0f19]/90 z-10 space-y-3">
+              <div class="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p class="text-sm text-gray-300 font-medium">服务当前未在运行</p>
+              <p class="text-xs text-gray-500">点击下方按钮启动后即可直接在当前界面操作</p>
+              <button v-if="currentWorkspaceService" @click="startService(currentWorkspaceService.id)"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all">
+                立即启动该服务
+              </button>
+            </div>
+
+            <iframe v-if="currentWorkspaceService" :src="`/proxy/${currentWorkspaceService.id}/`" class="workspace-iframe"></iframe>
+          </div>
+        </template>
       </section>
 
       <!-- 视图 5: AI 智能调度助手 -->
@@ -809,10 +868,10 @@
         <!-- 快捷操作指令提示 -->
         <div class="px-6 py-2 border-t border-gray-800 bg-[#111827]/40 flex items-center gap-2 overflow-x-auto text-xs text-gray-400">
           <span class="shrink-0 text-gray-500">快捷建议:</span>
-          <button @click="aiInput = '请帮我扫描并分析当前 Mac 磁盘的大文件与 AI 模型缓存'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">🔍 扫描磁盘与AI缓存</button>
           <button @click="aiInput = '列出当前所有本地服务的运行状态'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">📋 查看服务状态</button>
-          <button @click="aiInput = '帮我启动 ComfyUI 图像生成服务'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">🚀 启动 ComfyUI</button>
           <button @click="aiInput = '检查当前系统的 CPU 与内存使用情况'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">📊 系统健康指标</button>
+          <button @click="aiInput = '查看当前 OmniHub 项目的根目录及配置文件'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">📁 项目配置信息</button>
+          <button @click="aiInput = '如何注册并启动一个新的本地大模型服务？'" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg shrink-0 transition-all">💡 新增服务指引</button>
         </div>
 
         <!-- 输入框 -->

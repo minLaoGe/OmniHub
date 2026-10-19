@@ -52,10 +52,14 @@ class ServicesManager:
 
     def load_services(self):
         if not SERVICES_FILE.exists():
+            SERVICES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(SERVICES_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
             return
         try:
             with open(SERVICES_FILE, "r", encoding="utf-8") as f:
                 configs = json.load(f)
+            self.services.clear()
             for cfg in configs:
                 if "max_memory_mb" not in cfg:
                     cfg["max_memory_mb"] = 0

@@ -194,6 +194,9 @@ const app = createApp({
         const res = await fetch('/api/system/stats');
         if (res.ok) {
           stats.value = await res.json();
+          if (stats.value.os_family === 'Windows' && newServiceForm.value.command === 'python3') {
+            newServiceForm.value.command = 'python';
+          }
         }
       } catch (e) {
         console.error("fetchStats error:", e);
@@ -649,6 +652,13 @@ const app = createApp({
       await fetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
       await fetchMCPServers();
       await fetchMCPTools();
+      if (selectedMCPServer.value?.id === id) {
+        if (mcpServers.value.length > 0) {
+          selectMCPServer(mcpServers.value[0]);
+        } else {
+          selectedMCPServer.value = null;
+        }
+      }
       showToast(`已移除 MCP 服务器 ${id}`, 'info');
     };
 
