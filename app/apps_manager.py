@@ -512,15 +512,15 @@ class AppsManager:
 
     def open_app_directory(
 
-        self, 
+        self,
 
-        install_location: str = "", 
+        install_location: str = "",
 
-        launch_path: str = "", 
+        launch_path: str = "",
 
-        process_names: List[str] = None, 
+        process_names: List[str] = None,
 
-        pids: List[int] = None, 
+        pids: List[int] = None,
 
         app_name: str = ""
 
@@ -652,7 +652,7 @@ class AppsManager:
 
                 return {
 
-                    "success": False, 
+                    "success": False,
 
                     "message": f"未找到【{app_name or '目标应用'}】的本地安装路径或执行程序（可能为虚拟应用或系统组件）"
 
