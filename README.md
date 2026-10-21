@@ -53,16 +53,21 @@
 ### ✨ 核心特性
 
 #### 💻 1. 本地应用与运行进程统一管控 (PC Apps & Process Manager)
-- **全方位应用发现**：穿透扫描 Windows 64位/32位/当前用户注册表及开始菜单，毫秒级还原快捷方式（`.lnk`）至底层真实 `.exe` 实体路径与安装根目录。
-- **双视图随心切换**：
-  - 🗂️ **卡片网格视图 (Grid View)**：直观展现软件图标、发布者、内存占用徽章与核心快捷入口。
-  - 📋 **专业生产力列表 (Table View)**：多列信息清晰呈现，一览应用名、版本、实时进程、内存 (MB)、磁盘大小 (GB)、CPU 负载及启动路径。
-- **多维度实时排序**：支持按照应用名称、物理内存占用（升序/降序）、磁盘占用大小、CPU 占用、运行状态多维正倒序实时重排。
-- **四大一键快捷操作**：
-  - 🚀 **一键极速启动 (Launch)**：直接调起目标本地软件。
-  - 🛑 **一键强杀进程树 (Kill Tree)**：干净递归终止所有关联进程，瞬间释放占用的句柄与系统资源。
-  - 📂 **一键定位高亮 (Reveal in Explorer)**：多级回退原生 ShellExecute 机制，**100% 必弹系统资源管理器**并精准选中高亮该 `.exe` 文件。
-  - 🗑️ **一键官方卸载 (Uninstall)**：快速调起官方卸载向导或 Winget 卸载引擎。
+- **全方位跨平台应用发现**：
+  - **Windows**：穿透扫描 64位/32位/当前用户注册表及开始菜单，毫秒级还原快捷方式（`.lnk`）至底层真实 `.exe` 实体路径与安装根目录。
+  - **macOS**：深度扫描 `/Applications`、`~/Applications` 及系统目录，智能解析 `.app` 的 `Info.plist` 获取 CFBundle 元数据，支持 Homebrew Cask 与 App Store 软件自动识别。
+- **双视图随心切换**：
+  - 🗂️ **卡片网格视图 (Grid View)**：直观展现软件图标、发布者、内存占用徽章与核心快捷入口。
+  - 📋 **专业生产力列表 (Table View)**：多列信息清晰呈现，一览应用名、版本、实时进程、内存 (MB)、磁盘大小 (GB)、CPU 负载及启动路径。
+- **多维度实时排序**：支持按照应用名称、物理内存占用（升序/降序）、磁盘占用大小、CPU 占用、运行状态多维正倒序实时重排。
+- **批量卸载与深度残留数据清理 (Batch Uninstall & Deep Cleanup)**：
+  - 支持多选应用进行一键批量卸载；
+  - 提供可选的「深度数据残留清理」开关，自动安全扫描并清理关联的配置目录（`Application Support`、`Preferences`、`Caches`、日志等用户残留数据），彻底释放磁盘空间。
+- **四大一键快捷操作**：
+  - 🚀 **一键极速启动 (Launch)**：直接调起目标本地软件。
+  - 🛑 **一键强杀进程树 (Kill Tree)**：干净递归终止所有关联进程，瞬间释放占用的句柄与系统资源。
+  - 📂 **一键定位高亮 (Reveal in Explorer / Finder)**：Windows 多级回退原生 ShellExecute 机制（100% 必弹资源管理器高亮文件）与 macOS Finder 原生揭示。
+  - 🗑️ **一键官方卸载 (Uninstall)**：快速调起官方卸载向导、macOS 废纸篓安全移动或 Winget 卸载引擎。
 
 #### ⚡ 2. Windows 物理内存工作集智能压缩与守护 (Memory Trimming & Guardian)
 - **无需杀进程，瞬间释放数百 MB 物理内存**：针对抖音客户端 (Douyin)、浏览器多标签页、大型 Electron 软件等“内存大户”，原生调用 Windows 底层 `EmptyWorkingSet` 核心 API，瞬间压缩释放物理内存（RSS），将数百兆内存回收到 30~50MB，软件依然保持正常运行不中断！
@@ -176,11 +181,14 @@ When running multiple AI services and desktop applications locally, users and de
 
 ### ✨ Key Features
 
-1. **Host App & Process Resource Manager**
-   - Deep scanning across Windows Registry (64-bit, 32-bit, Current User) and Start Menu shortcuts (resolves `.lnk` to true target `.exe` paths).
-   - Dual View Modes: **Card Grid View** & **Professional Table List View**.
-   - Multi-Column Dynamic Sorting: Sort by Name, RAM usage (MB), Disk footprint (GB), CPU load, and Running status.
-   - 1-Click Operations: 🚀 Launch | 🛑 Kill Process Tree | 📂 Reveal in File Explorer (with highlight) | 🗑️ Official / Winget Uninstall.
+1. **Host App & Process Resource Manager**
+   - Deep Cross-Platform Application Discovery:
+     - **Windows**: Scans 64-bit, 32-bit, Current User registries and Start Menu shortcuts (resolves `.lnk` to true target `.exe` paths).
+     - **macOS**: Scans `/Applications`, `~/Applications`, and system directories with `Info.plist` bundle metadata parsing, Homebrew Cask detection, and App Store application recognition.
+   - Dual View Modes: **Card Grid View** & **Professional Table List View**.
+   - Multi-Column Dynamic Sorting: Sort by Name, RAM usage (MB), Disk footprint (GB), CPU load, and Running status.
+   - Batch Uninstall with Optional Deep Data Cleanup: Select multiple apps for bulk uninstallation, with automatic detection and cleanup of user caches, Application Support, and preferences.
+   - 1-Click Operations: 🚀 Launch | 🛑 Kill Process Tree | 📂 Reveal in File Explorer / Finder (with highlight) | 🗑️ Official / Winget / Trash Uninstall.
 
 2. **Windows WorkingSet Memory Trimming & Guardian**
    - Native Windows `EmptyWorkingSet` memory compression: reclaim hundreds of megabytes of physical RAM without stopping or restarting apps (ideal for Douyin, Chrome, etc.).

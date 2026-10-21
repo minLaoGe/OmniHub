@@ -832,10 +832,11 @@ class AppsManager:
                     return {"success": False, "message": "未找到已安装的 Mac 应用，请刷新列表后重试。"}
                 if bundle.suffix.lower() != '.app' or not (bundle / 'Contents/Info.plist').is_file():
                     return {"success": False, "message": "目标不是有效的 Mac 应用程序包。"}
-                for proc in psutil.process_iter(['exe']):
-                    try:
-                        executable = proc.info.get('exe') or ''
-                        if executable.startswith(str(bundle) + '/'):
+                bundle_norm = str(bundle).replace('\\', '/')
+                for proc in psutil.process_iter(['exe']):
+                    try:
+                        executable = (proc.info.get('exe') or '').replace('\\', '/')
+                        if executable.startswith(bundle_norm + '/'):
                             return {"success": False, "message": f"【{app_name}】仍在运行，请先退出应用后再卸载。"}
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue

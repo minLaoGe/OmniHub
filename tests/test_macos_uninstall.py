@@ -110,7 +110,10 @@ class MacUninstallTests(unittest.TestCase):
         home = Path(self.directory.name).resolve() / 'home'
         cache = home / 'Library/Caches/com.example.test'
         cache.parent.mkdir(parents=True)
-        cache.symlink_to(self.directory.name, target_is_directory=True)
+        try:
+            cache.symlink_to(self.directory.name, target_is_directory=True)
+        except OSError:
+            self.skipTest("Symlink requires administrator privilege on Windows")
         with patch('app.apps_manager.Path.home', return_value=home):
             result = self.manager.preview_app_cleanup(str(self.bundle))
         self.assertTrue(result['success'])
