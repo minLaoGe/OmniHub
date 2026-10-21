@@ -911,16 +911,86 @@ const app = createApp({
 
     };
 
+    const selectedAppPaths = ref([]);
+    const canSelectApp = (item) => stats.value.os_family === 'Darwin' && item.source === 'MacBundle' && !item.is_running && item.launch_path && !item.launch_path.startsWith('/System/');
+    const selectedApps = computed(() => apps.value.filter(item => selectedAppPaths.value.includes(item.launch_path) && canSelectApp(item)));
+    const selectVisibleApps = () => {
+      selectedAppPaths.value = [...new Set([...selectedAppPaths.value, ...filteredApps.value.filter(canSelectApp).map(item => item.launch_path)])];
+    };
+    const uninstallPlan = ref(null);
+    const cleanupSize = (bytes) => bytes >= 1024 ** 3 ? (bytes / 1024 ** 3).toFixed(2) + ' GB' : bytes >= 1024 ** 2 ? (bytes / 1024 ** 2).toFixed(1) + ' MB' : (bytes / 1024).toFixed(1) + ' KB';
+    const toggleCleanup = (group) => {
+      group.selected = group.removeData ? group.items.map(item => item.path) : [];
+    };
+    const openMacUninstall = async (items) => {
+      if (!items.length) return;
+      uninstallPlan.value = {groups: items.map(app => ({app, items: [], selected: [], removeData: false, error: '', note: ''})), loading: true, busy: false, done: false, results: []};
+      const plan = uninstallPlan.value;
+      for (const group of plan.groups) {
+        try {
+          const res = await fetch('/api/apps/uninstall/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({launch_path: group.app.launch_path})
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || data.detail || '扫描失败');
+          group.items = data.items;
+          group.note = data.note;
+        } catch (error) { group.error = String(error); }
+      }
+      plan.loading = false;
+    };
+    const confirmMacUninstall = async () => {
+      const plan = uninstallPlan.value;
+      if (!plan || plan.busy || plan.loading || plan.done || plan.groups.some(group => group.error)) return;
+      const names = plan.groups.map(group => group.app.name).join('、');
+      const count = plan.groups.reduce((sum, group) => sum + (group.removeData ? group.selected.length : 0), 0);
+      if (!confirm(`最后确认：将 ${plan.groups.length} 个应用（${names}）及 ${count} 项关联数据移入废纸篓？`)) return;
+      plan.busy = true;
+      for (const group of plan.groups) {
+        try {
+          const res = await fetch('/api/apps/uninstall', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({app_name: group.app.name, launch_path: group.app.launch_path,
+              cleanup_paths: group.removeData ? group.selected : []})
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || '卸载失败');
+          plan.results.push({name: group.app.name, success: data.success, message: data.message,
+            failed: data.failed_paths || []});
+          if (data.app_removed) selectedAppPaths.value = selectedAppPaths.value.filter(path => path !== group.app.launch_path);
+        } catch (error) {
+          plan.results.push({name: group.app.name, success: false, message: String(error), failed: []});
+        }
+      }
+      plan.busy = false;
+      plan.done = true;
+      await loadApps(true);
+    };
+
     const uninstallApp = async (appItem) => {
-      if (!confirm(`⚠️ 确定要卸载应用【${appItem.name}】吗？\n系统将拉起该应用的官方卸载向导。`)) return;
+      const isMac = stats.value.os_family === 'Darwin';
+      if (isMac && appItem.is_running) {
+        showToast('请先退出应用后再卸载。', 'error');
+        return;
+      }
+      if (isMac) {
+        await openMacUninstall([appItem]);
+        return;
+      }
+      const message = isMac
+        ? `确定将【${appItem.name}】移入废纸篓吗？\n可以从废纸篓恢复，应用数据和缓存将保留。`
+        : `⚠️ 确定要卸载应用【${appItem.name}】吗？\n系统将拉起该应用的官方卸载向导。`;
+      if (!confirm(message)) return;
       try {
-        showToast(`🗑️ 正在拉起【${appItem.name}】卸载向导...`, 'info', 2500);
+        showToast(isMac ? `正在将【${appItem.name}】移入废纸篓…` : `正在拉起【${appItem.name}】卸载向导…`, 'info', 2500);
         const res = await fetch('/api/apps/uninstall', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             app_name: appItem.name,
-            uninstall_string: appItem.uninstall_string
+            uninstall_string: appItem.uninstall_string,
+            launch_path: appItem.launch_path
           })
         });
         const data = await res.json();
@@ -1174,7 +1244,7 @@ const app = createApp({
       appsSortOrder,
       toggleSort,
       openAppDir,
-      uninstallApp
+      uninstallApp, uninstallPlan, cleanupSize, toggleCleanup, confirmMacUninstall, selectedAppPaths, selectedApps, canSelectApp, selectVisibleApps, openMacUninstall
     };
   }
 });

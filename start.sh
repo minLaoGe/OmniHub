@@ -18,10 +18,10 @@ elif [ -d "$DIR/.venv" ]; then
 fi
 
 # 检查依赖
-python3 -c "import fastapi, uvicorn, httpx, psutil, mcp" >/dev/null 2>&1
+python3 -c "import fastapi, uvicorn, httpx, psutil, mcp, send2trash" >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo "📦 正在安装运行依赖..."
-    pip install fastapi uvicorn httpx psutil mcp
+    pip install fastapi uvicorn httpx psutil mcp send2trash
 fi
 
 # 检查端口占用

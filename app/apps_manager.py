@@ -4,8 +4,11 @@ import json
 import time
 import asyncio
 import platform
+import plistlib
+from xml.parsers.expat import ExpatError
 import subprocess
 import psutil
+from send2trash import send2trash
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -286,6 +289,37 @@ class AppsManager:
 
                             })
 
+        elif CURRENT_OS == "Darwin":
+            roots = [Path('/Applications'), Path.home() / 'Applications',
+                     Path('/System/Applications'), Path('/System/Library/CoreServices/Applications')]
+            seen_bundles = set()
+            for root in roots:
+                for folder, dirs, _ in os.walk(root, followlinks=False):
+                    for directory in list(dirs):
+                        if not directory.lower().endswith('.app'):
+                            continue
+                        dirs.remove(directory)
+                        bundle = (Path(folder) / directory).resolve()
+                        if bundle in seen_bundles:
+                            continue
+                        seen_bundles.add(bundle)
+                        try:
+                            with (bundle / 'Contents/Info.plist').open('rb') as stream:
+                                info = plistlib.load(stream)
+                        except (OSError, ValueError, plistlib.InvalidFileException, ExpatError):
+                            continue
+                        executable = info.get('CFBundleExecutable', '')
+                        apps.append({
+                            'name': info.get('CFBundleDisplayName') or info.get('CFBundleName') or bundle.stem,
+                            'version': info.get('CFBundleShortVersionString') or info.get('CFBundleVersion', ''),
+                            'publisher': '',
+                            'install_location': str(bundle),
+                            'launch_path': str(bundle),
+                            'executable_name': executable,
+                            'icon': '',
+                            'source': 'MacBundle',
+                        })
+
         self.installed_cache = apps
         self.last_scan_time = now
         return apps
@@ -322,10 +356,22 @@ class AppsManager:
                 pass
         return running
 
-    def list_apps(self, search: str = "", only_running: bool = False, only_limited: bool = False) -> List[Dict[str, Any]]:
+    def list_apps(self, search: str = "", only_running: bool = False, only_limited: bool = False, refresh: bool = False) -> List[Dict[str, Any]]:
         """列出本机应用，并关联当前实时运行状态与内存限制规则"""
-        installed = self.scan_installed_apps()
+        installed = self.scan_installed_apps(force_refresh=refresh)
         running_map = self.get_running_process_map()
+        mac_bundles = {}
+        if CURRENT_OS == "Darwin":
+            for proc in psutil.process_iter(['pid', 'name', 'exe', 'memory_info', 'cpu_percent']):
+                try:
+                    info = proc.info
+                    executable = info.get('exe') or ''
+                    if '.app/' not in executable:
+                        continue
+                    bundle = executable.split('.app/', 1)[0] + '.app'
+                    mac_bundles.setdefault(bundle, []).append(info)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
 
         matched_lower_procs = set()
         result_list = []
@@ -334,7 +380,7 @@ class AppsManager:
         for app in installed:
             name = app["name"]
             launch_path = app.get("launch_path", "")
-            exe_name = Path(launch_path).name.lower() if launch_path else ""
+            exe_name = (app.get("executable_name") or (Path(launch_path).name if launch_path else "")).lower()
 
             # 匹配运行中状态
             matched_procs = []
@@ -343,13 +389,20 @@ class AppsManager:
             cpu_sum = 0.0
 
             # 匹配规则：通过 exe_name 或名称匹配
-            if exe_name and exe_name in running_map:
+            if CURRENT_OS == "Darwin":
+                for info in mac_bundles.get(launch_path, []):
+                    matched_procs.append(info['name'])
+                    matched_pids.append(info['pid'])
+                    mem_sum += info['memory_info'].rss / (1024 * 1024) if info.get('memory_info') else 0
+                    cpu_sum += info.get('cpu_percent') or 0
+                    matched_lower_procs.add(info['name'].lower())
+            elif exe_name and exe_name in running_map:
                 matched_procs.append(running_map[exe_name]["name"])
                 matched_pids.extend(running_map[exe_name]["pids"])
                 mem_sum += running_map[exe_name]["memory_mb"]
                 cpu_sum += running_map[exe_name]["cpu_percent"]
                 matched_lower_procs.add(exe_name)
-            else:
+            elif CURRENT_OS != "Darwin":
                 # 模糊名称匹配
                 name_clean = name.lower().replace(" ", "").replace(".exe", "")
                 for r_low, r_val in running_map.items():
@@ -466,6 +519,11 @@ class AppsManager:
     def launch_app(self, launch_path: str, app_name: str) -> Dict[str, Any]:
         """快速启动应用程序"""
         try:
+            if CURRENT_OS == "Darwin":
+                if not launch_path or not Path(launch_path).is_dir() or Path(launch_path).suffix.lower() != '.app':
+                    return {"success": False, "message": "未找到可启动的 Mac 应用程序包"}
+                subprocess.run(['/usr/bin/open', '-a', launch_path], check=True)
+                return {"success": True, "message": f"已成功发送启动指令: {app_name}"}
             if launch_path and Path(launch_path).exists():
                 if CURRENT_OS == "Windows":
                     os.startfile(launch_path)
@@ -697,9 +755,123 @@ class AppsManager:
 
             return {"success": False, "message": f"打开目录异常: {str(e)}"}
 
-    def uninstall_app(self, app_name: str, uninstall_string: str) -> Dict[str, Any]:
-        """一键启动官方卸载向导"""
+    def preview_app_cleanup(self, launch_path: str) -> Dict[str, Any]:
+        """列出可独立确认的应用关联目录，不处理共享目录或猜测项目路径。"""
+        if CURRENT_OS != 'Darwin':
+            return {'success': False, 'message': '关联文件扫描仅支持 macOS。'}
+        bundle = Path(launch_path).expanduser().resolve()
+        installed = self.scan_installed_apps(force_refresh=True)
+        if bundle.is_relative_to(Path('/System')) or not any(
+                a.get('source') == 'MacBundle' and a['launch_path'] == str(bundle) for a in installed):
+            return {'success': False, 'message': '目标不是可卸载的已安装应用。'}
         try:
+            with (bundle / 'Contents/Info.plist').open('rb') as stream:
+                info = plistlib.load(stream)
+        except (OSError, ValueError, ExpatError, plistlib.InvalidFileException) as exc:
+            return {'success': False, 'message': f'读取应用信息失败：{exc}'}
+        home = Path.home()
+        library = home / 'Library'
+        identifier = info.get('CFBundleIdentifier', '')
+        name = info.get('CFBundleName') or bundle.stem
+        candidates = []
+        if identifier and '/' not in identifier and identifier not in ('.', '..'):
+            for folder, leaf in [('Caches', identifier), ('Application Support', identifier),
+                    ('Preferences', identifier + '.plist'), ('Logs', identifier),
+                    ('Saved Application State', identifier + '.savedState'),
+                    ('HTTPStorages', identifier), ('WebKit', identifier), ('Containers', identifier)]:
+                candidates.append((library / folder / leaf, '缓存' if folder == 'Caches' else '设置与用户数据'))
+        # 名称目录只有在已安装应用中不存在同名时，才归属给当前应用。
+        if name and '/' not in name and name not in ('.', '..') and sum(a['name'] == name for a in installed) <= 1:
+            for folder in ['Application Support', 'Caches', 'Logs']:
+                candidates.append((library / folder / name, '缓存' if folder == 'Caches' else '设置与用户数据'))
+        if identifier == 'app.omlx':
+            candidates.append((home / '.omlx', '模型、设置与用户数据'))
+        items, seen = [], set()
+        for path, category in candidates:
+            if not path.exists() or path.is_symlink() or path.resolve() != path.absolute():
+                continue
+            if str(path) in seen:
+                continue
+            seen.add(str(path))
+            size, complete = 0, True
+            try:
+                if path.is_file():
+                    size = path.stat().st_size
+                else:
+                    def onerror(error):
+                        nonlocal complete
+                        complete = False
+                    for root, dirs, files in os.walk(path, followlinks=False, onerror=onerror):
+                        dirs[:] = [d for d in dirs if not (Path(root) / d).is_symlink()]
+                        for filename in files:
+                            entry = Path(root) / filename
+                            if entry.is_symlink():
+                                continue
+                            try:
+                                size += entry.stat().st_size
+                            except OSError:
+                                complete = False
+            except OSError:
+                complete = False
+            items.append({'path': str(path), 'category': category, 'size_bytes': size,
+                          'size_complete': complete})
+        return {'success': True, 'items': items, 'total_bytes': sum(i['size_bytes'] for i in items),
+                'note': '仅列出可识别的独立关联目录；不自动包含共享目录、自选项目位置或其他用户的数据。大小为逻辑大小，移入废纸篓不会立即释放磁盘空间。'}
+
+    def uninstall_app(self, app_name: str, uninstall_string: str, launch_path: str = "", cleanup_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Mac 应用移入废纸篓；Windows 启动卸载向导。"""
+        try:
+            if CURRENT_OS == "Darwin":
+                if not launch_path:
+                    return {"success": False, "message": "缺少应用安装路径，请刷新应用列表后重试。"}
+                bundle = Path(launch_path).expanduser().resolve()
+                if bundle.is_relative_to(Path('/System')):
+                    return {"success": False, "message": "macOS 系统应用不能在此卸载。"}
+                installed = self.scan_installed_apps(force_refresh=True)
+                if not any(a.get('source') == 'MacBundle' and a['launch_path'] == str(bundle) for a in installed):
+                    return {"success": False, "message": "未找到已安装的 Mac 应用，请刷新列表后重试。"}
+                if bundle.suffix.lower() != '.app' or not (bundle / 'Contents/Info.plist').is_file():
+                    return {"success": False, "message": "目标不是有效的 Mac 应用程序包。"}
+                for proc in psutil.process_iter(['exe']):
+                    try:
+                        executable = proc.info.get('exe') or ''
+                        if executable.startswith(str(bundle) + '/'):
+                            return {"success": False, "message": f"【{app_name}】仍在运行，请先退出应用后再卸载。"}
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                selected = list(dict.fromkeys(cleanup_paths or []))
+                if selected:
+                    preview = self.preview_app_cleanup(str(bundle))
+                    if not preview.get('success'):
+                        return preview
+                    allowed = {item['path'] for item in preview['items']}
+                    if any(path not in allowed for path in selected):
+                        return {'success': False, 'message': '关联文件列表已变化或路径无效，请重新扫描后确认。'}
+                send2trash(str(bundle))
+                if bundle.exists():
+                    return {"success": False, "message": "应用尚未移入废纸篓，请检查系统权限后重试。"}
+                self.installed_cache = []
+                self.last_scan_time = 0
+                removed, failed = [], []
+                # 父目录先移动，避免嵌套候选被重复操作。
+                for path in sorted(selected, key=len):
+                    if any(Path(path).is_relative_to(Path(parent)) for parent in removed):
+                        continue
+                    try:
+                        send2trash(path)
+                        if Path(path).exists():
+                            raise OSError('移动未生效')
+                        removed.append(path)
+                    except OSError as exc:
+                        failed.append({'path': path, 'error': str(exc)})
+                message = f'【{app_name}】已移入废纸篓。'
+                message += f'已移除 {len(removed)} 项选中的关联数据。' if selected else '应用数据和缓存已保留。'
+                if failed:
+                    message += f'有 {len(failed)} 项未能移除，请查看失败清单。'
+                return {'success': not failed, 'app_removed': True, 'message': message,
+                        'removed_paths': removed, 'failed_paths': failed}
+            if CURRENT_OS != "Windows":
+                return {"success": False, "message": "此平台暂不支持应用卸载。"}
             if uninstall_string:
                 clean_cmd = uninstall_string.strip()
                 # Windows 下直接通过 shell 拉起卸载程序

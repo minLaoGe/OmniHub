@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent
 CURRENT_OS = platform.system()
 
 def check_and_install_dependencies():
-    packages = ["fastapi", "uvicorn", "httpx", "psutil", "mcp"]
+    packages = ["fastapi", "uvicorn", "httpx", "psutil", "mcp", "send2trash"]
     missing = []
     for pkg in packages:
         try:

@@ -164,7 +164,7 @@ async def ws_service_logs(websocket: WebSocket, service_id: str):
 # ----------------- 本地应用与内存管控接口 -----------------
 @app.get("/api/apps")
 async def get_apps(search: str = "", only_running: bool = False, only_limited: bool = False, refresh: bool = False):
-    return await asyncio.to_thread(apps_manager.list_apps, search=search, only_running=only_running, only_limited=only_limited)
+    return await asyncio.to_thread(apps_manager.list_apps, search=search, only_running=only_running, only_limited=only_limited, refresh=refresh)
 
 @app.post("/api/apps/launch")
 async def launch_app_endpoint(payload: dict = Body(...)):
@@ -243,11 +243,15 @@ async def open_app_dir_endpoint(payload: dict = Body(...)):
 
     )
 
+@app.post("/api/apps/uninstall/preview")
+async def preview_app_cleanup_endpoint(payload: dict = Body(...)):
+    return await asyncio.to_thread(apps_manager.preview_app_cleanup, payload.get("launch_path", ""))
+
 @app.post("/api/apps/uninstall")
 async def uninstall_app_endpoint(payload: dict = Body(...)):
     app_name = payload.get("app_name", "")
     uninstall_string = payload.get("uninstall_string", "")
-    return apps_manager.uninstall_app(app_name, uninstall_string)
+    return await asyncio.to_thread(apps_manager.uninstall_app, app_name, uninstall_string, payload.get("launch_path", ""), payload.get("cleanup_paths", []))
 
 @app.post("/api/apps/install_online")
 async def install_online_app_endpoint(payload: dict = Body(...)):

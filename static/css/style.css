@@ -187,3 +187,7 @@ code, pre, .font-mono {
 /* Keep resource columns readable on smaller screens; the wrapper scrolls. */
 .apps-table { min-width: 1080px; }
 .apps-table th, .apps-table td:nth-child(n+3) { white-space: nowrap; }
+
+.dashboard-services { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.service-actions { flex-wrap: wrap; }
+.service-actions > * { flex-shrink: 0; }
