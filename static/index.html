@@ -4,32 +4,60 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OmniHub - 统一大模型与服务中枢平台</title>
-  <!-- Tailwind CSS -->
+  <!-- 容灾诊断与错误捕获 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error("[OmniHub Error]", e);
+      var banner = document.getElementById('global-error-banner');
+      if (!banner && document.body) {
+        banner = document.createElement('div');
+        banner.id = 'global-error-banner';
+        banner.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;background:#7f1d1d;color:#fecaca;padding:12px 16px;border-radius:12px;z-index:99999;font-size:12px;font-family:monospace;border:1px solid #ef4444;box-shadow:0 10px 25px rgba(0,0,0,0.5);display:flex;justify-content:space-between;align-items:center;';
+        banner.innerHTML = '<span>⚠️ 页面脚本加载异常: ' + (e.message || e) + ' (请尝试 Ctrl+F5 强制刷新)</span><button onclick="this.parentElement.remove()" style="background:#b91c1c;color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;margin-left:12px;">关闭</button>';
+        document.body.appendChild(banner);
+      }
+    });
+  </script>
+
+  <!-- 本地与 CDN 双模样式保障 -->
+  <link rel="stylesheet" href="/static/vendor/tailwind.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#eff6ff',
-              500: '#3b82f6',
-              600: '#2563eb',
-              700: '#1d4ed8'
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
             }
           }
         }
-      }
+      };
     }
   </script>
-  <!-- Vue 3 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="/static/css/style.css">
+
+  <!-- Vue 3 核心加载 (本地优先，CDN 自动熔断备份) -->
+  <script src="/static/vendor/vue.global.prod.js"></script>
+  <script>
+    if (typeof Vue === 'undefined') {
+      document.write('<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"><\/script>');
+    }
+  </script>
+
+  <!-- v-cloak 优雅淡入过渡，彻底杜绝黑屏卡死 -->
+  <style>
+    [v-cloak] {
+      opacity: 0.1;
+      transition: opacity 0.3s ease-in;
+    }
+  </style>
+
+  <!-- Custom CSS (带版本时间戳，防止浏览器强缓存) -->
+  <link rel="stylesheet" href="/static/css/style.css?v=1792553640">
 </head>
 <body class="bg-[#0b0f19] text-gray-100 min-h-screen flex antialiased select-none">
-  <div id="app" class="flex w-full h-screen overflow-hidden relative">
+  <div id="app" v-cloak class="flex w-full h-screen overflow-hidden relative">
 
     <!-- 全局现代 Toast 消息提示组件 -->
     <div class="toast-container">
@@ -75,6 +103,14 @@
             仪表盘
           </button>
 
+          <button @click="currentTab = 'apps'" :class="{'active': currentTab === 'apps'}"
+            class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+            应用与进程管理
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300 font-mono">{{ runningAppsCount }} 运行</span>
+          </button>
           <button @click="currentTab = 'services'" :class="{'active': currentTab === 'services'}"
             class="nav-tab w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800/60 hover:text-white transition-all border border-transparent">
             <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,6 +197,7 @@
         <div class="flex items-center gap-3">
           <h2 class="text-lg font-semibold text-white tracking-wide">
             <span v-if="currentTab === 'dashboard'">系统全景仪表盘</span>
+            <span v-else-if="currentTab === 'apps'">本地应用与内存管控中心 (发现应用、快速启动、强力杀进程与内存配额限制)</span>
             <span v-else-if="currentTab === 'services'">服务管理控制台 (端口配置 & 内存配额防护)</span>
             <span v-else-if="currentTab === 'mcp'">MCP 工具注册与调试大厅</span>
             <span v-else-if="currentTab === 'workspace'">一体化服务工作区 (WebUI 集成)</span>
@@ -593,6 +630,420 @@
           </div>
         </div>
       </section>
+      <!-- 视图: 本地应用与内存管控中心 -->
+      <section v-if="currentTab === 'apps'" class="p-8 space-y-6 max-w-7xl mx-auto w-full">
+
+        <!-- 顶部工具栏 -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#111827]/80 border border-gray-800 p-5 rounded-2xl backdrop-blur-sm">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
+              <span>🪟 本机应用与进程管理</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-normal">
+                已就绪 {{ apps.length }} 个应用 / {{ runningAppsCount }} 个正在运行
+              </span>
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">发现电脑上安装的全部软件、极速启动、一键结束卡死进程，并为高耗内存程序（如抖音）设置物理内存配额</p>
+          </div>
+
+          <div class="flex items-center gap-3 w-full md:w-auto">
+            <button @click="trimAllAppsMemory"
+              class="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              一键全盘释放内存
+            </button>
+            <button @click="openOnlineInstallModal"
+              class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              在线搜索安装新 App
+            </button>
+            <button @click="loadApps(false)" title="强制重新扫描"
+              class="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-all">
+              <svg class="w-4 h-4" :class="{'animate-spin': appsLoading}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 内存守护引擎状态条 -->
+        <div class="bg-gradient-to-r from-amber-950/30 via-gray-900 to-blue-950/30 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-gray-200 flex items-center gap-2">
+                <span>🛡️ 后台物理内存守护引擎实时工作中</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span class="text-[11px] text-amber-400 font-mono">已受控纳管 {{ limitedAppsCount }} 个限制项</span>
+              </div>
+              <p class="text-[11px] text-gray-400 mt-0.5">当抖音或受限应用物理内存超出设定阈值时，引擎会自动执行 Working Set 压缩回收，瞬间释放多余物理内存而不闪退程序！</p>
+            </div>
+          </div>
+          <button @click="guardianLogsOpen = !guardianLogsOpen" class="text-xs px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 shrink-0 border border-gray-700 flex items-center gap-1.5 transition-all">
+            <span>{{ guardianLogsOpen ? '收起守护日志' : '查看管控日志' }}</span>
+            <span v-if="guardianLogs.length" class="text-[10px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 rounded font-mono">{{ guardianLogs.length }}</span>
+          </button>
+        </div>
+
+        <!-- 展开的守护日志面板 -->
+        <div v-if="guardianLogsOpen" class="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-2 max-h-48 overflow-y-auto font-mono text-xs text-gray-300">
+          <div v-if="!guardianLogs.length" class="text-gray-500 py-2 text-center">暂无内存管控触发记录，所有受限应用运行平稳。</div>
+          <div v-for="(log, idx) in guardianLogs" :key="idx" class="flex items-start gap-2 py-0.5">
+            <span class="text-gray-500 shrink-0">{{ log.time }}</span>
+            <span :class="{'text-emerald-400': log.type === 'trim', 'text-rose-400': log.type === 'kill', 'text-amber-400': log.type === 'alert'}">{{ log.message }}</span>
+          </div>
+        </div>
+
+        <!-- 筛选、搜索与视图/排序切换工具条 -->
+        <div class="space-y-3">
+          <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
+            <!-- 标签筛选 -->
+            <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+              <button @click="appsFilter = 'all'" :class="appsFilter === 'all' ? 'bg-blue-600 text-white font-medium' : 'bg-gray-800 text-gray-400 hover:text-white'"
+                class="px-3.5 py-1.5 rounded-xl text-xs transition-all shrink-0">
+                全部应用 ({{ apps.length }})
+              </button>
+              <button @click="appsFilter = 'running'" :class="appsFilter === 'running' ? 'bg-emerald-600 text-white font-medium' : 'bg-gray-800 text-gray-400 hover:text-white'"
+                class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                正在运行 ({{ runningAppsCount }})
+              </button>
+              <button @click="appsFilter = 'limited'" :class="appsFilter === 'limited' ? 'bg-amber-600 text-white font-medium' : 'bg-gray-800 text-gray-400 hover:text-white'"
+                class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                已限内存 ({{ limitedAppsCount }})
+              </button>
+            </div>
+
+            <!-- 搜索输入框 -->
+            <div class="relative w-full sm:w-80">
+              <input v-model="appsSearch" type="text" placeholder="搜索应用名称、进程名 (如 抖音, Chrome)..."
+                class="w-full bg-gray-900 border border-gray-700/80 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+              <svg class="w-4 h-4 text-gray-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <button v-if="appsSearch" @click="appsSearch = ''" class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-300 text-xs">✕</button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+            <label for="apps-disk-filter">安装目录大小</label>
+            <select id="apps-disk-filter" v-model="appsDiskFilter" class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white">
+              <option value="all">全部大小</option><option value="small">小于 1 GB</option>
+              <option value="medium">1–5 GB</option><option value="large">大于等于 5 GB</option>
+              <option value="custom">自定义范围</option><option value="unknown">待统计 / 不完整</option>
+            </select>
+            <template v-if="appsDiskFilter === 'custom'">
+              <input v-model="appsDiskMin" type="number" min="0" aria-label="最小大小 MB" placeholder="最小 MB" class="w-28 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white">
+              <span>至</span>
+              <input v-model="appsDiskMax" type="number" min="0" aria-label="最大大小 MB" placeholder="最大 MB" class="w-28 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white">
+            </template>
+            <span>按目录文件大小统计；共享目录可能重复，未包含目录外缓存。首次后台统计需等待。</span>
+          </div>
+          <!-- 视图模式与排序行 -->
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-[#111827]/60 p-2.5 rounded-xl border border-gray-800">
+            <!-- 排序切换 -->
+            <div class="flex items-center gap-2 flex-wrap text-xs text-gray-400">
+              <span class="text-gray-500 text-[11px] font-medium">排序方式:</span>
+              <button @click="toggleSort('memory_mb')"
+                :class="appsSortBy === 'memory_mb' ? 'bg-purple-900/40 text-purple-300 border-purple-500/50 font-bold' : 'bg-gray-800/80 text-gray-400 border-gray-700/80'"
+                class="px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 hover:text-white transition-all">
+                <span>物理内存</span>
+                <span v-if="appsSortBy === 'memory_mb'" class="text-[10px]">{{ appsSortOrder === 'desc' ? '▼ 降序' : '▲ 升序' }}</span>
+              </button>
+              <button @click="toggleSort('disk_bytes')" class="px-2.5 py-1 rounded-lg border text-xs bg-gray-800 text-gray-300 border-gray-700">
+                硬盘大小 {{ appsSortBy === 'disk_bytes' ? (appsSortOrder === 'desc' ? '▼' : '▲') : '' }}
+              </button>
+              <button @click="toggleSort('name')"
+                :class="appsSortBy === 'name' ? 'bg-blue-900/40 text-blue-300 border-blue-500/50 font-bold' : 'bg-gray-800/80 text-gray-400 border-gray-700/80'"
+                class="px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 hover:text-white transition-all">
+                <span>应用名称</span>
+                <span v-if="appsSortBy === 'name'" class="text-[10px]">{{ appsSortOrder === 'desc' ? 'Z→A' : 'A→Z' }}</span>
+              </button>
+              <button @click="toggleSort('cpu_percent')"
+                :class="appsSortBy === 'cpu_percent' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-500/50 font-bold' : 'bg-gray-800/80 text-gray-400 border-gray-700/80'"
+                class="px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 hover:text-white transition-all">
+                <span>CPU占用</span>
+                <span v-if="appsSortBy === 'cpu_percent'" class="text-[10px]">{{ appsSortOrder === 'desc' ? '▼ 降序' : '▲ 升序' }}</span>
+              </button>
+              <button @click="toggleSort('is_running')"
+                :class="appsSortBy === 'is_running' ? 'bg-amber-900/40 text-amber-300 border-amber-500/50 font-bold' : 'bg-gray-800/80 text-gray-400 border-gray-700/80'"
+                class="px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 hover:text-white transition-all">
+                <span>运行中优先</span>
+              </button>
+            </div>
+
+            <!-- 视图显示切换 -->
+            <div class="flex items-center bg-gray-900 p-0.5 rounded-lg border border-gray-800">
+              <button @click="appsViewMode = 'list'" :class="appsViewMode === 'list' ? 'bg-blue-600 text-white shadow-sm font-semibold' : 'text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-md text-xs transition-all flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                列表显示
+              </button>
+              <button @click="appsViewMode = 'grid'" :class="appsViewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm font-semibold' : 'text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-md text-xs transition-all flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                卡片网格
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 应用卡片列表 -->
+        <div v-if="appsLoading && !apps.length" class="py-16 text-center text-gray-500 space-y-3">
+          <svg class="w-8 h-8 text-blue-500 animate-spin mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <p class="text-xs">正在深入扫描本地应用与实时进程信息...</p>
+        </div>
+
+        <div v-else-if="!filteredApps.length" class="py-16 text-center text-gray-500 bg-gray-900/30 border border-gray-800 rounded-2xl">
+          <p class="text-sm">未找到匹配的应用项目</p>
+        </div>
+
+        <!-- 模式一：现代化列表显示模式 (Table View) -->
+        <div v-else-if="appsViewMode === 'list'" class="bg-[#111827]/90 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+          <div class="overflow-x-auto">
+            <table class="apps-table w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-gray-800 bg-gray-900/90 text-gray-400 uppercase tracking-wider font-medium text-[11px]">
+                  <th @click="toggleSort('name')" class="py-3.5 px-4 cursor-pointer hover:text-white select-none transition-colors">
+                    <div class="flex items-center gap-1.5">
+                      <span>应用名称</span>
+                      <span v-if="appsSortBy === 'name'" class="text-blue-400 font-mono">{{ appsSortOrder === 'desc' ? '▼' : '▲' }}</span>
+                    </div>
+                  </th>
+                  <th class="py-3.5 px-4">厂商 / 来源</th>
+                  <th @click="toggleSort('is_running')" class="py-3.5 px-4 cursor-pointer hover:text-white select-none transition-colors">
+                    <div class="flex items-center gap-1.5">
+                      <span>运行状态</span>
+                      <span v-if="appsSortBy === 'is_running'" class="text-amber-400 font-mono">{{ appsSortOrder === 'desc' ? '▼' : '▲' }}</span>
+                    </div>
+                  </th>
+                  <th @click="toggleSort('memory_mb')" class="py-3.5 px-4 cursor-pointer hover:text-white select-none transition-colors">
+                    <div class="flex items-center gap-1.5">
+                      <span>物理内存占用</span>
+                      <span v-if="appsSortBy === 'memory_mb'" class="text-purple-400 font-mono">{{ appsSortOrder === 'desc' ? '▼' : '▲' }}</span>
+                    </div>
+                  </th>
+                  <th @click="toggleSort('disk_bytes')" class="py-3.5 px-4 cursor-pointer hover:text-white" title="安装目录内文件大小，不含目录外缓存">硬盘大小 {{ appsSortBy === 'disk_bytes' ? (appsSortOrder === 'desc' ? '▼' : '▲') : '' }}</th>
+                  <th @click="toggleSort('cpu_percent')" class="py-3.5 px-4 cursor-pointer hover:text-white select-none transition-colors">
+                    <div class="flex items-center gap-1.5">
+                      <span>CPU 占用</span>
+                      <span v-if="appsSortBy === 'cpu_percent'" class="text-emerald-400 font-mono">{{ appsSortOrder === 'desc' ? '▼' : '▲' }}</span>
+                    </div>
+                  </th>
+                  <th class="py-3.5 px-4">内存配额限制</th>
+                  <th class="py-3.5 px-4 text-right">操作管理</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-800/60 font-mono text-gray-300">
+                <tr v-for="app in filteredApps" :key="app.id" class="hover:bg-gray-800/40 transition-colors group"
+                  :class="{'bg-rose-950/20': app.is_over_limit}">
+                  <!-- 应用名称 -->
+                  <td class="py-3 px-4 font-sans">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0"
+                        :class="app.is_running ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm' : 'bg-gray-800 text-gray-400 border border-gray-700'">
+                        {{ app.name.slice(0, 1).toUpperCase() }}
+                      </div>
+                      <div class="min-w-0">
+                        <div class="font-bold text-white group-hover:text-blue-400 transition-colors truncate max-w-[200px]" :title="app.name">{{ app.name }}</div>
+                        <div v-if="app.version" class="text-[10px] text-gray-500 font-mono truncate">{{ app.version }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <!-- 发布商 -->
+                  <td class="py-3 px-4 font-sans text-gray-400">
+                    <div class="truncate max-w-[130px]" :title="app.publisher || '本地程序'">{{ app.publisher || '-' }}</div>
+                    <span class="text-[9px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-500 font-mono">{{ app.source }}</span>
+                  </td>
+                  <!-- 运行状态 -->
+                  <td class="py-3 px-4 font-sans">
+                    <span v-if="app.is_running" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      运行中 ({{ app.pids.length }})
+                    </span>
+                    <span v-else class="text-[11px] text-gray-500">未启动</span>
+                  </td>
+                  <!-- 物理内存 -->
+                  <td class="py-3 px-4">
+                    <span v-if="app.is_running" class="font-bold" :class="app.is_over_limit ? 'text-rose-400 animate-pulse' : 'text-purple-300'">
+                      {{ app.memory_mb }} MB
+                    </span>
+                    <span v-else class="text-gray-600">-</span>
+                  </td>
+                  <!-- CPU -->
+                  <td class="py-3 px-4 text-blue-300" :title="app.disk_path || '未找到独立安装目录'">{{ formatDisk(app) }}</td>
+                  <td class="py-3 px-4 text-gray-400">
+                    {{ app.is_running ? (app.cpu_percent + '%') : '-' }}
+                  </td>
+                  <!-- 内存配额策略 -->
+                  <td class="py-3 px-4 font-sans">
+                    <span v-if="app.max_memory_mb > 0" class="px-2 py-0.5 rounded text-[11px] bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium font-mono">
+                      {{ app.max_memory_mb }}M ({{ app.memory_action === 'trim' ? '自动压缩' : (app.memory_action === 'kill' ? '强杀' : '告警') }})
+                    </span>
+                    <span v-else class="text-gray-600 text-[11px]">未限制</span>
+                  </td>
+                  <!-- 操作管理列 -->
+                  <td class="py-3 px-4 font-sans text-right">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <!-- 未运行：启动 -->
+                      <button v-if="!app.is_running" @click="launchApp(app)" title="启动程序"
+                        class="p-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </button>
+                      <!-- 运行中：释放内存 -->
+                      <button v-if="app.is_running" @click="trimAppMemory(app)" title="瞬间压缩回收多余物理内存"
+                        class="p-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                      </button>
+                      <!-- 运行中：杀死进程 -->
+                      <button v-if="app.is_running" @click="killApp(app)" title="强行杀死全部进程树"
+                        class="p-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                      <!-- 打开安装所在目录 -->
+                      <button @click="openAppDir(app)" title="在资源管理器中打开安装目录并高亮文件"
+                        class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg transition-all border border-gray-700">
+                        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
+                      </button>
+                      <!-- 配额设置 -->
+                      <button @click="openMemoryModal(app)" title="设定内存配额"
+                        class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg transition-all border border-gray-700">
+                        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      </button>
+                      <!-- 一键卸载 -->
+                      <button @click="uninstallApp(app)" title="调用官方卸载向导"
+                        class="p-1.5 bg-gray-800 hover:bg-rose-900/40 text-gray-400 hover:text-rose-400 rounded-lg transition-all border border-gray-700">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 模式二：卡片网格模式 (Grid View) -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-for="app in filteredApps" :key="app.id"
+            class="bg-[#111827]/90 border rounded-2xl p-5 flex flex-col justify-between transition-all hover:border-gray-700 hover:shadow-xl group"
+            :class="app.is_over_limit ? 'border-rose-500/60 shadow-lg shadow-rose-950/20' : (app.is_running ? 'border-emerald-500/30' : 'border-gray-800/80')">
+
+            <div>
+              <!-- 头部：图标/首字母 + 名称 + 运行状态 -->
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-md shrink-0"
+                    :class="app.is_running ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'">
+                    {{ app.name.slice(0, 1).toUpperCase() }}
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate max-w-[180px]" :title="app.name">
+                      {{ app.name }}
+                    </h3>
+                    <div class="flex items-center gap-1.5 text-[11px] text-gray-400 mt-0.5">
+                      <span v-if="app.version" class="font-mono text-gray-500">{{ app.version }}</span>
+                      <span v-if="app.publisher" class="truncate max-w-[100px] text-gray-500" :title="app.publisher">· {{ app.publisher }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 运行状态指示 -->
+                <div>
+                  <span v-if="app.is_running" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    运行中
+                  </span>
+                  <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] text-gray-500 bg-gray-800/60 border border-gray-700/50">
+                    未启动
+                  </span>
+                </div>
+              </div>
+
+              <div class="mt-3 text-xs text-blue-300" :title="app.disk_path || '未找到独立安装目录'">安装目录大小：{{ formatDisk(app) }}</div>
+              <!-- 运行数据指标 (RAM / CPU / 配额) -->
+              <div class="mt-4 pt-3 border-t border-gray-800/60 space-y-2 text-xs">
+                <!-- 内存与CPU -->
+                <div v-if="app.is_running" class="grid grid-cols-2 gap-2 bg-gray-900/60 p-2.5 rounded-xl border border-gray-800/50">
+                  <div>
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider">物理内存占用</div>
+                    <div class="font-mono font-bold mt-0.5" :class="app.is_over_limit ? 'text-rose-400 animate-pulse' : 'text-purple-300'">
+                      {{ app.memory_mb }} MB
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider">进程 / CPU</div>
+                    <div class="font-mono text-gray-300 mt-0.5">
+                      {{ app.pids.length }} 个 / {{ app.cpu_percent }}%
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 内存配额状态条 -->
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="text-gray-400">内存配额管控:</span>
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="app.max_memory_mb > 0" class="font-mono px-2 py-0.5 rounded text-[11px] bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+                      {{ app.max_memory_mb }} MB ({{ app.memory_action === 'trim' ? '自动压缩' : (app.memory_action === 'kill' ? '超限强杀' : '仅告警') }})
+                    </span>
+                    <span v-else class="text-gray-500">未设置</span>
+                  </div>
+                </div>
+
+                <div v-if="app.is_over_limit" class="text-[11px] text-rose-400 bg-rose-950/40 border border-rose-500/30 rounded-lg px-2.5 py-1 flex items-center gap-1.5 font-medium">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                  <span>已超过预设安全配额！正在自动管控中</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 操作按钮组 -->
+            <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <!-- 未运行：启动按钮 -->
+                <button v-if="!app.is_running" @click="launchApp(app)"
+                  class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  启动
+                </button>
+
+                <!-- 正在运行：释放内存按钮 -->
+                <button v-if="app.is_running" @click="trimAppMemory(app)" title="强制回收多余物理内存，不中断程序"
+                  class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1 shadow-sm">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  释放内存
+                </button>
+
+                <!-- 正在运行：杀死进程按钮 -->
+                <button v-if="app.is_running" @click="killApp(app)" title="强制杀死全部关联进程"
+                  class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  杀死
+                </button>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <!-- 打开安装目录 -->
+                <button @click="openAppDir(app)" title="在资源管理器中定位"
+                  class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl text-xs transition-all border border-gray-700">
+                  <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
+                </button>
+                <!-- 内存配额 -->
+                <button @click="openMemoryModal(app)" title="设定内存配额"
+                  class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl text-xs font-medium transition-all flex items-center gap-1 border border-gray-700">
+                  <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  配额
+                </button>
+                <!-- 一键卸载 -->
+                <button @click="uninstallApp(app)" title="调用官方卸载向导"
+                  class="p-2 bg-gray-800 hover:bg-rose-900/40 text-gray-400 hover:text-rose-400 rounded-xl text-xs transition-all border border-gray-700">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
 
       <!-- 视图 3: MCP 注册与工具中心 -->
       <section v-if="currentTab === 'mcp'" class="flex-1 flex overflow-hidden">
@@ -1068,8 +1519,179 @@
       </div>
     </div>
 
+
+    <!-- 模态框: 设置应用内存配额与自动限制策略 -->
+    <div v-if="memoryModalOpen" class="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#111827] border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+        <div class="flex justify-between items-center pb-2 border-b border-gray-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span>🛡️ 设定内存配额 - {{ memoryModalForm.name }}</span>
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">当目标应用超出配额时，OmniHub 守护引擎自动执行保护策略</p>
+          </div>
+          <button @click="memoryModalOpen = false" class="text-gray-500 hover:text-gray-300">✕</button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+          <!-- 目标进程 -->
+          <div v-if="memoryModalForm.process_names && memoryModalForm.process_names.length">
+            <label class="block text-gray-400 mb-1">监控的进程名</label>
+            <div class="font-mono bg-gray-900 border border-gray-800 rounded-lg p-2 text-gray-300">
+              {{ memoryModalForm.process_names.join(', ') }}
+            </div>
+          </div>
+
+          <!-- 限制数值 -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label class="text-gray-300 font-medium">最大内存上限配额 (MB)</label>
+              <span class="font-mono text-amber-400 font-bold">{{ memoryModalForm.max_memory_mb }} MB</span>
+            </div>
+            <input v-model.number="memoryModalForm.max_memory_mb" type="number" min="50" step="50"
+              class="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white font-mono text-sm focus:border-amber-500 focus:outline-none">
+
+            <!-- 快捷预设按钮 -->
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-gray-500 text-[11px]">快捷选择:</span>
+              <button @click="setQuickMemory(500)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-mono">500MB</button>
+              <button @click="setQuickMemory(800)" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 rounded-lg text-[11px] font-mono border border-amber-500/30">800MB(推荐)</button>
+              <button @click="setQuickMemory(1024)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-mono">1GB</button>
+              <button @click="setQuickMemory(1536)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-mono">1.5GB</button>
+              <button @click="setQuickMemory(2048)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-mono">2GB</button>
+            </div>
+          </div>
+
+          <!-- 超限动作策略 -->
+          <div>
+            <label class="block text-gray-300 font-medium mb-1.5">超限处理策略</label>
+            <div class="space-y-2">
+              <label class="flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="memoryModalForm.action === 'trim' ? 'border-emerald-500/60 bg-emerald-950/20' : 'border-gray-800 bg-gray-900/40'">
+                <input type="radio" v-model="memoryModalForm.action" value="trim" class="mt-0.5 text-emerald-500">
+                <div>
+                  <div class="font-bold text-white flex items-center gap-1.5">
+                    <span>⚡ 智能物理工作集压缩 (Trim Working Set)</span>
+                    <span class="text-[10px] px-1.5 bg-emerald-500/20 text-emerald-300 rounded">强烈推荐</span>
+                  </div>
+                  <p class="text-[11px] text-gray-400 mt-0.5">当超出上限时，自动调用底层 API 压缩物理内存，瞬间将 1G+ 内存降至几十兆，不闪退不关闭程序，解决抖音/浏览器爆内存神器！</p>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="memoryModalForm.action === 'kill' ? 'border-rose-500/60 bg-rose-950/20' : 'border-gray-800 bg-gray-900/40'">
+                <input type="radio" v-model="memoryModalForm.action" value="kill" class="mt-0.5 text-rose-500">
+                <div>
+                  <div class="font-bold text-white">🛑 超限安全终止 (Kill)</div>
+                  <p class="text-[11px] text-gray-400 mt-0.5">超过配额立即强制杀死该进程树，防止严重的内存泄漏导致电脑死机卡顿。</p>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="memoryModalForm.action === 'alert' ? 'border-amber-500/60 bg-amber-950/20' : 'border-gray-800 bg-gray-900/40'">
+                <input type="radio" v-model="memoryModalForm.action" value="alert" class="mt-0.5 text-amber-500">
+                <div>
+                  <div class="font-bold text-white">⚠️ 仅超限警示 (Alert)</div>
+                  <p class="text-[11px] text-gray-400 mt-0.5">仅在界面标红闪烁提醒并记录守护日志，不干预进程运行。</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-3 border-t border-gray-800">
+          <button @click="removeMemoryLimit(memoryModalForm)" class="text-xs text-rose-400 hover:text-rose-300">解除限制</button>
+          <div class="flex gap-2">
+            <button @click="memoryModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs">取消</button>
+            <button @click="saveMemoryLimit" class="px-5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-amber-500/20">保存配额</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框: Winget 在线软件搜索与安装 -->
+    <div v-if="onlineInstallModalOpen" class="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+      <div class="bg-[#111827] border border-gray-800 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center pb-2 border-b border-gray-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span>📦 在线软件仓库快速安装 (Winget 驱动)</span>
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">直接通过微软官方 Windows 包管理器在后台静默安装任意新 App</p>
+          </div>
+          <button @click="onlineInstallModalOpen = false" class="text-gray-500 hover:text-gray-300">✕</button>
+        </div>
+
+        <!-- 搜索输入框 -->
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <input v-model="onlineSearchQuery" @keyup.enter="searchOnlineApps" type="text" placeholder="输入软件名搜索 (如 抖音, 微信, 7zip, Chrome, VSCode)..."
+              class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+            <button @click="searchOnlineApps" :disabled="onlineSearching"
+              class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-2">
+              <svg v-if="onlineSearching" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span>{{ onlineSearching ? '搜索中...' : '搜索软件' }}</span>
+            </button>
+          </div>
+
+          <!-- 热门推荐标签 -->
+          <div class="flex items-center gap-1.5 flex-wrap text-[11px] text-gray-400">
+            <span>快捷搜索:</span>
+            <button v-for="tag in ['抖音', '微信', '7zip', 'Google Chrome', 'Visual Studio Code', 'Git']" :key="tag"
+              @click="onlineSearchQuery = tag; searchOnlineApps()"
+              class="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-mono">
+              {{ tag }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 搜索结果列表 -->
+        <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
+          <div v-if="onlineSearching" class="py-12 text-center text-gray-500 space-y-2">
+            <svg class="w-6 h-6 text-blue-500 animate-spin mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="text-xs">正在向 Winget 官方源检索软件包...</p>
+          </div>
+
+          <div v-else-if="!onlineSearchResults.length" class="py-12 text-center text-gray-500">
+            <p class="text-xs">输入关键词即可检索海量 Windows 官方认证软件包</p>
+          </div>
+
+          <div v-else v-for="pkg in onlineSearchResults" :key="pkg.id"
+            class="bg-gray-900/60 border border-gray-800/80 rounded-xl p-3.5 flex items-center justify-between gap-4 hover:border-gray-700 transition-all">
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-white truncate">{{ pkg.name }}</div>
+              <div class="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-gray-400">
+                <span class="text-blue-400 font-semibold">{{ pkg.id }}</span>
+                <span v-if="pkg.version">v{{ pkg.version }}</span>
+                <span class="text-[10px] px-1.5 py-0.2 bg-gray-800 text-gray-400 rounded">{{ pkg.source }}</span>
+              </div>
+            </div>
+
+            <button @click="installOnlineApp(pkg)" :disabled="installingMap[pkg.id]"
+              class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shrink-0 shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5">
+              <svg v-if="installingMap[pkg.id]" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span>{{ installingMap[pkg.id] ? '正在安装...' : '一键安装' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-3 border-t border-gray-800">
+          <button @click="onlineInstallModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs">关闭窗口</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=1792553640"></script>
+  <script>
+    // 超时安全保底：若 1.5 秒内 Vue 出现异常未挂载，强制揭开 v-cloak 避免黑屏
+    setTimeout(function() {
+      var el = document.getElementById('app');
+      if (el && el.hasAttribute('v-cloak')) {
+        el.removeAttribute('v-cloak');
+      }
+    }, 1500);
+  </script>
 </body>
 </html>

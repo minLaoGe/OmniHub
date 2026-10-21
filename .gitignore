@@ -7,3 +7,6 @@ ENV/
 .DS_Store
 *.log
 data/settings.json
+
+# Local application memory rules
+data/app_rules.json

@@ -9,6 +9,7 @@ STATIC_DIR = BASE_DIR / "static"
 SERVICES_FILE = DATA_DIR / "services.json"
 MCP_SERVERS_FILE = DATA_DIR / "mcp_servers.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+APP_RULES_FILE = DATA_DIR / "app_rules.json"
 
 class AppConfig(BaseModel):
     host: str = "0.0.0.0"

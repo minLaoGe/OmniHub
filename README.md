@@ -226,3 +226,16 @@ Then visit: 👉 **http://127.0.0.1:9527**
 
 ### 📄 License
 This project is licensed under the [MIT License](LICENSE).
+
+
+### 开发与推送记录
+
+每次推送的改动说明见 [PUSH_LOG.md](PUSH_LOG.md)。后续推送前请补充日期、改动内容及验证结果。
+
+本地前端资源已随仓库提供，日常运行不依赖 Vue/Tailwind CDN。修改 HTML/JS 使用的 Tailwind 类后，在仓库根目录重新生成样式：
+
+```powershell
+npx --yes --package tailwindcss@3.4.17 tailwindcss -c tailwind.config.cjs -i static/css/tailwind.input.css -o static/vendor/tailwind.min.css --minify
+```
+
+应用管理中的“硬盘大小”统计安装目录内文件总大小，不含目录外用户数据与缓存。首次后台统计期间显示“统计中”，超时或读取不完整时显示下限（≥）。

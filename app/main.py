@@ -13,6 +13,7 @@ from .services_manager import services_manager
 from .mcp_manager import mcp_manager
 from .proxy import proxy_service_request
 from .ai_agent import chat_with_agent
+from .apps_manager import apps_manager
 
 app = FastAPI(
     title="OmniHub - 统一大模型与服务中枢平台",
@@ -28,9 +29,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # 挂载静态文件
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(apps_manager.start_memory_guardian())
 
 # ----------------- 页面入口 -----------------
 @app.get("/", response_class=HTMLResponse)
@@ -114,7 +128,7 @@ async def get_omnihub_project_info():
 
 @app.post("/api/services/{service_id}/reveal")
 async def reveal_service_directory(service_id: str):
-    return services_manager.reveal_in_explorer(service_id)
+    return await asyncio.to_thread(services_manager.reveal_in_explorer, service_id)
 
 @app.get("/api/services/{service_id}/logs")
 async def get_service_logs(service_id: str, limit: int = 500):
@@ -134,7 +148,6 @@ async def ws_service_logs(websocket: WebSocket, service_id: str):
         return
 
     sp = services_manager.services[service_id]
-    # Send historical logs first
     for log_line in list(sp.logs)[-100:]:
         await websocket.send_text(log_line)
 
@@ -147,6 +160,101 @@ async def ws_service_logs(websocket: WebSocket, service_id: str):
         pass
     finally:
         sp.remove_listener(queue)
+
+# ----------------- 本地应用与内存管控接口 -----------------
+@app.get("/api/apps")
+async def get_apps(search: str = "", only_running: bool = False, only_limited: bool = False, refresh: bool = False):
+    return await asyncio.to_thread(apps_manager.list_apps, search=search, only_running=only_running, only_limited=only_limited)
+
+@app.post("/api/apps/launch")
+async def launch_app_endpoint(payload: dict = Body(...)):
+    launch_path = payload.get("launch_path", "")
+    app_name = payload.get("app_name", "")
+    return apps_manager.launch_app(launch_path, app_name)
+
+@app.post("/api/apps/kill")
+async def kill_app_endpoint(payload: dict = Body(...)):
+    process_names = payload.get("process_names", [])
+    pids = payload.get("pids", [])
+    return apps_manager.kill_app(process_names, pids)
+
+@app.post("/api/apps/trim")
+async def trim_app_endpoint(payload: dict = Body(...)):
+    pids = payload.get("pids", [])
+    process_names = payload.get("process_names", [])
+    return apps_manager.trim_app_memory(pids, process_names)
+
+@app.post("/api/apps/trim_all")
+async def trim_all_apps_endpoint():
+    return apps_manager.trim_all_running_apps()
+
+@app.get("/api/apps/rules")
+async def get_app_rules_endpoint():
+    return apps_manager.get_rules()
+
+@app.post("/api/apps/rules")
+async def set_app_rule_endpoint(payload: dict = Body(...)):
+    app_id = payload.get("app_id")
+    max_memory_mb = int(payload.get("max_memory_mb", 0))
+    action = payload.get("action", "trim")
+    process_names = payload.get("process_names")
+    enabled = payload.get("enabled", True)
+    if not app_id:
+        raise HTTPException(status_code=400, detail="app_id is required")
+    return apps_manager.set_app_rule(app_id, max_memory_mb, action, process_names, enabled)
+
+@app.delete("/api/apps/rules/{app_id}")
+async def delete_app_rule_endpoint(app_id: str):
+    return apps_manager.delete_app_rule(app_id)
+
+@app.get("/api/apps/guardian_logs")
+async def get_guardian_logs_endpoint(limit: int = 50):
+    return apps_manager.get_guardian_logs(limit)
+
+@app.get("/api/apps/search_online")
+async def search_online_apps_endpoint(query: str = Query(...)):
+    return apps_manager.search_online_apps(query)
+
+@app.post("/api/apps/open_dir")
+
+async def open_app_dir_endpoint(payload: dict = Body(...)):
+
+    install_location = payload.get("install_location", "")
+
+    launch_path = payload.get("launch_path", "")
+
+    process_names = payload.get("process_names", [])
+
+    pids = payload.get("pids", [])
+
+    app_name = payload.get("app_name", "")
+
+    return await asyncio.to_thread(apps_manager.open_app_directory,
+
+        install_location=install_location,
+
+        launch_path=launch_path,
+
+        process_names=process_names,
+
+        pids=pids,
+
+        app_name=app_name
+
+    )
+
+@app.post("/api/apps/uninstall")
+async def uninstall_app_endpoint(payload: dict = Body(...)):
+    app_name = payload.get("app_name", "")
+    uninstall_string = payload.get("uninstall_string", "")
+    return apps_manager.uninstall_app(app_name, uninstall_string)
+
+@app.post("/api/apps/install_online")
+async def install_online_app_endpoint(payload: dict = Body(...)):
+    package_id = payload.get("package_id")
+    if not package_id:
+        raise HTTPException(status_code=400, detail="package_id is required")
+    return apps_manager.install_online_app(package_id)
 
 # ----------------- MCP 管理接口 -----------------
 @app.get("/api/mcp/servers")

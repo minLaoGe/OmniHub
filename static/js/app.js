@@ -63,12 +63,12 @@ const app = createApp({
     const revealService = async (serviceId) => {
       try {
         showToast(`📂 正在打开文件管理器定位...`, 'info', 2000);
-        const res = await fetch(`/api/services/${serviceId}/reveal`, { method: 'POST' });
+        const res = await fetch(`/api/services/${encodeURIComponent(serviceId)}/reveal`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
           showToast(`📂 已在系统访达/文件管理器中定位项目目录！`, 'success', 3000);
         } else {
-          showToast(`⚠️ 定位失败: ${data.message}`, 'error', 3500);
+          showToast(`⚠️ 定位失败: ${data.message || data.error || "未知错误"}`, 'error', 3500);
         }
       } catch (e) {
         showToast(`⚠️ 定位出错: ${e}`, 'error', 3500);
@@ -671,6 +671,394 @@ const app = createApp({
       }
     };
 
+
+    // ==========================================
+    // Apps & Process Management Module (本地应用与内存管控)
+    // ==========================================
+    const apps = ref([]);
+    const appsLoading = ref(false);
+    const appsSearch = ref('');
+    const appsDiskFilter = ref('all');
+    const appsDiskMin = ref('');
+    const appsDiskMax = ref('');
+    const formatDisk = (app) => {
+      if (app.disk_bytes == null) return app.disk_status === 'scanning' ? '统计中…' : '无法统计';
+      const bytes = app.disk_bytes;
+      const unit = bytes >= 1073741824 ? 'GB' : 'MB';
+      const value = bytes / (unit === 'GB' ? 1073741824 : 1048576);
+      return (app.disk_status === 'partial' ? '≥ ' : '') + value.toFixed(1) + ' ' + unit;
+    };
+    const appsFilter = ref('all'); // 'all' | 'running' | 'limited'
+    const appsViewMode = ref('list'); // 'list' (列表显示) | 'grid' (卡片网格)
+    const appsSortBy = ref('memory_mb'); // 'memory_mb' | 'name' | 'cpu_percent' | 'is_running'
+    const appsSortOrder = ref('desc'); // 'desc' | 'asc'
+    const guardianLogs = ref([]);
+    const guardianLogsOpen = ref(false);
+
+    const toggleSort = (field) => {
+      if (appsSortBy.value === field) {
+        appsSortOrder.value = appsSortOrder.value === 'asc' ? 'desc' : 'asc';
+      } else {
+        appsSortBy.value = field;
+        appsSortOrder.value = (field === 'name' ? 'asc' : 'desc');
+      }
+    };
+
+    const runningAppsCount = computed(() => {
+      return apps.value.filter(a => a.is_running).length;
+    });
+
+    const limitedAppsCount = computed(() => {
+      return apps.value.filter(a => a.max_memory_mb > 0).length;
+    });
+
+    const filteredApps = computed(() => {
+      let list = [...apps.value];
+      if (appsFilter.value === 'running') {
+        list = list.filter(a => a.is_running);
+      } else if (appsFilter.value === 'limited') {
+        list = list.filter(a => a.max_memory_mb > 0);
+      }
+      if (appsSearch.value.trim()) {
+        const q = appsSearch.value.trim().toLowerCase();
+        list = list.filter(a =>
+          a.name.toLowerCase().includes(q) ||
+          (a.publisher && a.publisher.toLowerCase().includes(q)) ||
+          (a.process_names && a.process_names.some(p => p.toLowerCase().includes(q)))
+        );
+      }
+
+      const diskMode = appsDiskFilter.value;
+      if (diskMode === 'unknown') list = list.filter(a => a.disk_status !== 'ready');
+      else if (diskMode !== 'all') list = list.filter(a => {
+        if (a.disk_status !== 'ready' || a.disk_bytes == null) return false;
+        const mb = a.disk_bytes / 1048576;
+        if (diskMode === 'small') return mb < 1024;
+        if (diskMode === 'medium') return mb >= 1024 && mb < 5120;
+        if (diskMode === 'large') return mb >= 5120;
+        return (appsDiskMin.value === '' || mb >= Number(appsDiskMin.value)) &&
+               (appsDiskMax.value === '' || mb <= Number(appsDiskMax.value));
+      });
+      // 执行动态排序 (按名称、物理内存、CPU占用或运行状态)
+      list.sort((a, b) => {
+        let factor = appsSortOrder.value === 'asc' ? 1 : -1;
+        if (appsSortBy.value === 'disk_bytes') {
+          if (a.disk_bytes == null || b.disk_bytes == null) return (a.disk_bytes == null) - (b.disk_bytes == null);
+          return factor * (a.disk_bytes - b.disk_bytes);
+        }
+        if (appsSortBy.value === 'name') {
+          return factor * a.name.localeCompare(b.name, 'zh-CN');
+        } else if (appsSortBy.value === 'memory_mb') {
+          if (a.memory_mb === b.memory_mb) {
+            return (b.is_running ? 1 : 0) - (a.is_running ? 1 : 0);
+          }
+          return factor * (a.memory_mb - b.memory_mb);
+        } else if (appsSortBy.value === 'cpu_percent') {
+          return factor * (a.cpu_percent - b.cpu_percent);
+        } else if (appsSortBy.value === 'is_running') {
+          return factor * ((a.is_running ? 1 : 0) - (b.is_running ? 1 : 0));
+        }
+        return 0;
+      });
+
+      return list;
+    });
+
+    const loadApps = async (silent = false) => {
+      if (!silent) appsLoading.value = true;
+      try {
+        const res = await fetch('/api/apps');
+        const data = await res.json();
+        apps.value = data;
+      } catch (e) {
+        if (!silent) showToast(`获取应用列表失败: ${e}`, 'error');
+      } finally {
+        if (!silent) appsLoading.value = false;
+      }
+    };
+
+    const launchApp = async (appItem) => {
+      try {
+        showToast(`🚀 正在启动 ${appItem.name}...`, 'info', 2000);
+        const res = await fetch('/api/apps/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            launch_path: appItem.launch_path,
+            app_name: appItem.name
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          setTimeout(() => loadApps(true), 1500);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`启动失败: ${e}`, 'error');
+      }
+    };
+
+    const killApp = async (appItem) => {
+      if (!confirm(`确定要立即杀死/强制结束【${appItem.name}】的所有进程吗？`)) return;
+      try {
+        showToast(`🛑 正在终止 ${appItem.name} 进程...`, 'info', 1500);
+        const res = await fetch('/api/apps/kill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            process_names: appItem.process_names,
+            pids: appItem.pids
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`已成功杀死 ${appItem.name}！`, 'success');
+          loadApps(true);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`操作失败: ${e}`, 'error');
+      }
+    };
+
+    const trimAppMemory = async (appItem) => {
+      try {
+        showToast(`⚡ 正在对 ${appItem.name} 执行物理工作集压缩...`, 'info', 1500);
+        const res = await fetch('/api/apps/trim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            process_names: appItem.process_names,
+            pids: appItem.pids
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success', 4500);
+          loadApps(true);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`压缩内存失败: ${e}`, 'error');
+      }
+    };
+
+    const trimAllAppsMemory = async () => {
+      try {
+        showToast(`⚡ 正在全盘优化当前所有高内存进程...`, 'info', 2000);
+        const res = await fetch('/api/apps/trim_all', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success', 4500);
+          loadApps(true);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`优化失败: ${e}`, 'error');
+      }
+    };
+
+    const openAppDir = async (appItem) => {
+
+      try {
+
+        showToast(`📂 正在定位【${appItem.name}】所在目录...`, 'info', 1500);
+
+        const res = await fetch('/api/apps/open_dir', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({
+
+            install_location: appItem.install_location,
+
+            launch_path: appItem.launch_path,
+
+            process_names: appItem.process_names,
+
+            pids: appItem.pids,
+
+            app_name: appItem.name
+
+          })
+
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+
+          showToast(data.message, 'success');
+
+        } else {
+
+          showToast(data.message, 'warning');
+
+        }
+
+      } catch (e) {
+
+        showToast(`打开目录失败: ${e}`, 'error');
+
+      }
+
+    };
+
+    const uninstallApp = async (appItem) => {
+      if (!confirm(`⚠️ 确定要卸载应用【${appItem.name}】吗？\n系统将拉起该应用的官方卸载向导。`)) return;
+      try {
+        showToast(`🗑️ 正在拉起【${appItem.name}】卸载向导...`, 'info', 2500);
+        const res = await fetch('/api/apps/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            app_name: appItem.name,
+            uninstall_string: appItem.uninstall_string
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success', 5000);
+          setTimeout(() => loadApps(true), 3000);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`卸载操作失败: ${e}`, 'error');
+      }
+    };
+
+    // 内存限制配额模态框
+    const memoryModalOpen = ref(false);
+    const memoryModalForm = ref({
+      app_id: '',
+      name: '',
+      max_memory_mb: 800,
+      action: 'trim',
+      process_names: [],
+      enabled: true
+    });
+
+    const openMemoryModal = (appItem) => {
+      memoryModalForm.value = {
+        app_id: appItem.id,
+        name: appItem.name,
+        max_memory_mb: appItem.max_memory_mb || 800,
+        action: appItem.memory_action || 'trim',
+        process_names: appItem.process_names || [],
+        enabled: true
+      };
+      memoryModalOpen.value = true;
+    };
+
+    const setQuickMemory = (mb) => {
+      memoryModalForm.value.max_memory_mb = mb;
+    };
+
+    const saveMemoryLimit = async () => {
+      try {
+        const res = await fetch('/api/apps/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(memoryModalForm.value)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          memoryModalOpen.value = false;
+          loadApps(true);
+        } else {
+          showToast(data.message || '保存失败', 'error');
+        }
+      } catch (e) {
+        showToast(`保存出错: ${e}`, 'error');
+      }
+    };
+
+    const removeMemoryLimit = async (formItem) => {
+      try {
+        const res = await fetch(`/api/apps/rules/${encodeURIComponent(formItem.app_id)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`已解除 ${formItem.name} 的内存限制`, 'info');
+          memoryModalOpen.value = false;
+          loadApps(true);
+        }
+      } catch (e) {
+        showToast(`删除规则失败: ${e}`, 'error');
+      }
+    };
+
+    // Winget 在线软件搜索与安装
+    const onlineInstallModalOpen = ref(false);
+    const onlineSearchQuery = ref('');
+    const onlineSearchResults = ref([]);
+    const onlineSearching = ref(false);
+    const installingMap = ref({});
+
+    const openOnlineInstallModal = () => {
+      onlineInstallModalOpen.value = true;
+      if (!onlineSearchResults.value.length) {
+        onlineSearchQuery.value = 'douyin';
+        searchOnlineApps();
+      }
+    };
+
+    const searchOnlineApps = async () => {
+      if (!onlineSearchQuery.value.trim()) return;
+      onlineSearching.value = true;
+      try {
+        const res = await fetch(`/api/apps/search_online?query=${encodeURIComponent(onlineSearchQuery.value.trim())}`);
+        const data = await res.json();
+        onlineSearchResults.value = data;
+      } catch (e) {
+        showToast(`搜索在线软件失败: ${e}`, 'error');
+      } finally {
+        onlineSearching.value = false;
+      }
+    };
+
+    const installOnlineApp = async (pkg) => {
+      if (!pkg.id) return;
+      installingMap.value[pkg.id] = true;
+      showToast(`📦 正在通过 Winget 静默安装: ${pkg.name}...`, 'info', 3000);
+      try {
+        const res = await fetch('/api/apps/install_online', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package_id: pkg.id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success', 5000);
+        } else {
+          showToast(data.message, 'error');
+        }
+      } catch (e) {
+        showToast(`安装出错: ${e}`, 'error');
+      } finally {
+        setTimeout(() => {
+          installingMap.value[pkg.id] = false;
+        }, 5000);
+      }
+    };
+
+    const loadGuardianLogs = async () => {
+      try {
+        const res = await fetch('/api/apps/guardian_logs');
+        guardianLogs.value = await res.json();
+      } catch (e) {}
+    };
+
     onMounted(async () => {
       await Promise.all([
         fetchOmniHubProject(),
@@ -678,12 +1066,18 @@ const app = createApp({
         fetchServices(),
         fetchMCPServers(),
         fetchMCPTools(),
-        loadSettings()
+        loadSettings(),
+        loadApps(true),
+        loadGuardianLogs()
       ]);
 
       pollInterval = setInterval(async () => {
         await fetchStats();
         await fetchServices();
+        if (currentTab.value === 'apps') {
+          await loadApps(true);
+          await loadGuardianLogs();
+        }
       }, 3000);
     });
 
@@ -745,7 +1139,42 @@ const app = createApp({
       newServiceForm,
       saveNewService,
       newMCPModalOpen,
-      newMCPForm
+      newMCPForm,
+      apps,
+      appsLoading,
+      appsSearch,
+      appsFilter,
+      appsDiskFilter, appsDiskMin, appsDiskMax, formatDisk,
+      runningAppsCount,
+      limitedAppsCount,
+      filteredApps,
+      loadApps,
+      launchApp,
+      killApp,
+      trimAppMemory,
+      trimAllAppsMemory,
+      memoryModalOpen,
+      memoryModalForm,
+      openMemoryModal,
+      setQuickMemory,
+      saveMemoryLimit,
+      removeMemoryLimit,
+      onlineInstallModalOpen,
+      onlineSearchQuery,
+      onlineSearchResults,
+      onlineSearching,
+      installingMap,
+      openOnlineInstallModal,
+      searchOnlineApps,
+      installOnlineApp,
+      guardianLogs,
+      guardianLogsOpen,
+      appsViewMode,
+      appsSortBy,
+      appsSortOrder,
+      toggleSort,
+      openAppDir,
+      uninstallApp
     };
   }
 });

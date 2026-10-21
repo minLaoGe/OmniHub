@@ -1,5 +1,4 @@
 /* Modern OmniHub Dark Glass Design */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 :root {
   --bg-primary: #0b0f19;
@@ -184,3 +183,7 @@ code, pre, .font-mono {
     opacity: 1;
   }
 }
+
+/* Keep resource columns readable on smaller screens; the wrapper scrolls. */
+.apps-table { min-width: 1080px; }
+.apps-table th, .apps-table td:nth-child(n+3) { white-space: nowrap; }

@@ -234,7 +234,11 @@ class ServicesManager:
 
     def resolve_service_paths(self, config: dict) -> dict:
         """解析并精确推断服务的项目根目录、工作目录与入口脚本绝对路径"""
-        cwd = config.get("cwd") or str(Path.cwd())
+        raw_cwd = config.get("cwd") or str(SERVICES_FILE.parent.parent)
+        cwd_path = Path(os.path.expandvars(str(raw_cwd).strip().strip('"'))).expanduser()
+        if not cwd_path.is_absolute():
+            cwd_path = SERVICES_FILE.parent.parent / cwd_path
+        cwd = str(cwd_path.resolve())
         args = config.get("args") or []
         entry_script = None
 
@@ -291,19 +295,31 @@ class ServicesManager:
             path_info = self.resolve_service_paths(self.services[path_or_service_id].config)
             target_path = path_info.get("project_path") or path_info.get("cwd")
 
-        if not target_path or not Path(target_path).exists():
-            return {"success": False, "error": f"Path not found on disk: {target_path}"}
+        if not target_path:
+            return {"success": False, "message": "未配置项目目录"}
 
         try:
+            target = Path(os.path.expandvars(str(target_path).strip().strip('"'))).expanduser()
+            if not target.is_absolute():
+                target = SERVICES_FILE.parent.parent / target
+            target = target.resolve()
+            if not target.exists():
+                return {"success": False, "message": f"项目路径不存在：{target}"}
+            if target.is_file():
+                target = target.parent
+
             if CURRENT_OS == "Darwin":
-                subprocess.run(["open", str(target_path)], check=True)
+                subprocess.run(["open", str(target)], check=True)
             elif CURRENT_OS == "Windows":
-                subprocess.run(["explorer", str(target_path)], check=True)
+                # Explorer can return a nonzero exit status after handing off
+                # to an existing window. Use the Windows shell API instead.
+                from .native_paths import open_windows_path
+                open_windows_path(target)
             else:
-                subprocess.run(["xdg-open", str(target_path)], check=True)
-            return {"success": True, "message": f"Opened {target_path} in file explorer", "path": str(target_path)}
+                subprocess.run(["xdg-open", str(target)], check=True)
+            return {"success": True, "message": f"已打开项目目录：{target}", "path": str(target)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "message": f"打开项目目录失败：{e}"}
 
     def get_omnihub_info(self) -> dict:
         """获取 OmniHub 自身的根工程路径与核心元数据"""
