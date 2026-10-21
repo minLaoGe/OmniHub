@@ -2,6 +2,19 @@
 
 每次推送代码前，在本文件顶部新增记录：日期、目标分支、改动内容和验证结果。具体提交编号以 Git 历史为准。
 
+## 2026-10-21 — 全面更新 README 文档与 MCP 应用管理扩展
+
+- **README 文档全面重构**：
+  - 同步中文与英文双语文档，全面收录近期新增核心模块与能力；
+  - 重点突出「本地电脑应用与全进程管理中枢（双视图、多维排序、一键启停/定位/卸载）」；
+  - 详细介绍「Windows 物理内存工作集原生压缩与守护（EmptyWorkingSet 毫秒级释放数百 MB 内存，专治抖音/浏览器等内存泄漏应用）」；
+  - 补充「硬盘占用异步深度扫描与区间筛选」、「微软 Winget 在线软件商店与一键部署」；
+  - 完善「OpenAI 兼容通用大模型反向代理网关」及「100% 纯本地离线化零 CDN 架构」说明。
+- **MCP Server 工具集扩展 (`omnihub-service-manager`)**：
+  - 新增系统应用级全自动感知与操控工具：`list_system_apps`、`trim_app_memory`、`kill_app_process`、`set_app_memory_limit`、`reveal_app_in_explorer`、`get_memory_guardian_logs`；
+  - 赋予外部 AI Agent（Claude Desktop, Cursor, Antigravity, Cline）自主感知系统应用健康指标并执行物理内存压降的能力。
+- **验证**：Python 语法编译检查全部通过，MCP Server 模块导入验证正常，README 渲染结构与代码块格式检查通过。
+
 ## 2026-10-21 — 推送记录补充与格式清理
 
 - 已推送的功能提交：[`3cb9062`](https://github.com/minLaoGe/OmniHub/commit/3cb9062)，目标为 `origin/main`。

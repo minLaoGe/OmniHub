@@ -251,5 +251,139 @@ def reveal_service_in_explorer(service_id: str) -> Dict[str, Any]:
     sm = _get_local_services_manager()
     return sm.reveal_in_explorer(service_id)
 
+def _get_local_apps_manager():
+    """回退：直接导入本地 apps_manager 模块执行应用管控"""
+    sys.path.insert(0, str(BASE_DIR))
+    from app.apps_manager import apps_manager
+    return apps_manager
+
+@mcp.tool()
+def list_system_apps(search: Optional[str] = None, only_running: bool = False) -> Dict[str, Any]:
+    """
+    List installed desktop applications and running processes on the host machine.
+    Returns app names, PIDs, memory usage (MB), CPU%, disk footprint, install paths, and memory limits.
+    """
+    params = {}
+    if search:
+        params["search"] = search
+    if only_running:
+        params["only_running"] = "true"
+    
+    query_str = ("?" + "&".join(f"{k}={v}" for k, v in params.items())) if params else ""
+    res = _call_hub_api("GET", f"/api/apps{query_str}")
+    if res is not None:
+        return {"source": "omnihub_api", "apps": res}
+
+    am = _get_local_apps_manager()
+    apps = am.get_all_apps(search=search or "", only_running=only_running)
+    return {"source": "local_engine", "apps": apps}
+
+@mcp.tool()
+def trim_app_memory(app_name: str) -> Dict[str, Any]:
+    """
+    Compress and release physical working set memory for a running application (e.g. 'douyin', 'chrome').
+    Calls Windows EmptyWorkingSet natively without killing or restarting the app.
+    """
+    # First find app details
+    apps_res = list_system_apps(search=app_name, only_running=True)
+    matched = None
+    for a in apps_res.get("apps", []):
+        if app_name.lower() in a["name"].lower() or any(app_name.lower() in p.lower() for p in a.get("process_names", [])):
+            matched = a
+            break
+
+    if not matched:
+        return {"success": False, "message": f"未找到正在运行的目标应用: {app_name}"}
+
+    payload = {
+        "pids": matched.get("pids", []),
+        "process_names": matched.get("process_names", [])
+    }
+    res = _call_hub_api("POST", "/api/apps/trim", json_data=payload)
+    if res is not None:
+        return res
+
+    am = _get_local_apps_manager()
+    return am.trim_app_memory(matched.get("pids", []), matched.get("process_names", []))
+
+@mcp.tool()
+def kill_app_process(app_name: str) -> Dict[str, Any]:
+    """
+    Force terminate all processes associated with the designated application.
+    """
+    apps_res = list_system_apps(search=app_name, only_running=True)
+    matched = None
+    for a in apps_res.get("apps", []):
+        if app_name.lower() in a["name"].lower() or any(app_name.lower() in p.lower() for p in a.get("process_names", [])):
+            matched = a
+            break
+
+    if not matched:
+        return {"success": False, "message": f"未找到正在运行的目标应用: {app_name}"}
+
+    payload = {
+        "process_names": matched.get("process_names", []),
+        "pids": matched.get("pids", [])
+    }
+    res = _call_hub_api("POST", "/api/apps/kill", json_data=payload)
+    if res is not None:
+        return res
+
+    am = _get_local_apps_manager()
+    return am.kill_app(matched.get("process_names", []), matched.get("pids", []))
+
+@mcp.tool()
+def set_app_memory_limit(app_name: str, max_memory_mb: int, action: str = "trim") -> Dict[str, Any]:
+    """
+    Configure background memory quota guard for an application (e.g. Douyin / 抖音 max 800MB).
+    action options: 'trim' (compress memory working set), 'kill' (terminate process), 'alert' (log only).
+    """
+    payload = {
+        "app_id": app_name,
+        "max_memory_mb": max_memory_mb,
+        "action": action,
+        "process_names": [app_name if app_name.endswith('.exe') else f"{app_name}.exe"],
+        "enabled": True
+    }
+    res = _call_hub_api("POST", "/api/apps/rules", json_data=payload)
+    if res is not None:
+        return res
+
+    am = _get_local_apps_manager()
+    return am.set_app_rule(app_name, max_memory_mb, action, payload["process_names"], True)
+
+@mcp.tool()
+def reveal_app_in_explorer(launch_path: Optional[str] = None, install_location: Optional[str] = None, app_name: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Open the host OS file explorer (Windows Explorer / macOS Finder) and highlight the application's executable.
+    """
+    payload = {
+        "launch_path": launch_path or "",
+        "install_location": install_location or "",
+        "app_name": app_name or ""
+    }
+    res = _call_hub_api("POST", "/api/apps/open_dir", json_data=payload)
+    if res is not None:
+        return res
+
+    am = _get_local_apps_manager()
+    return am.open_app_directory(
+        install_location=install_location or "",
+        launch_path=launch_path or "",
+        app_name=app_name or ""
+    )
+
+@mcp.tool()
+def get_memory_guardian_logs(limit: int = 20) -> Dict[str, Any]:
+    """
+    Retrieve recent background memory guardian logs and memory compression events.
+    """
+    res = _call_hub_api("GET", f"/api/apps/guardian_logs?limit={limit}")
+    if res is not None:
+        return {"logs": res}
+
+    am = _get_local_apps_manager()
+    return {"logs": am.get_guardian_logs(limit)}
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
